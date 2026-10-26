@@ -1,0 +1,109 @@
+@startuml
+skinparam linetype ortho
+skinparam roundcorner 6
+skinparam entity {
+  BackgroundColor #FFFFFF
+  BorderColor #14382C
+  HeaderBackgroundColor #D8F3DC
+}
+
+entity "users" as users {
+  * id : UUID <<PK>>
+  --
+  * nama : VARCHAR
+  * username : VARCHAR <<UQ>>
+  * email : VARCHAR <<UQ>>
+  avatar_url : TEXT
+  role : VARCHAR
+  theme_mode : theme_mode_type
+  created_at : TIMESTAMPTZ
+  updated_at : TIMESTAMPTZ
+}
+
+entity "accounts" as accounts {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * nama_akun : VARCHAR
+  * tipe : account_type
+  * saldo : NUMERIC
+  icon : VARCHAR
+  created_at : TIMESTAMPTZ
+  updated_at : TIMESTAMPTZ
+}
+
+entity "categories" as categories {
+  * id : SERIAL <<PK>>
+  --
+  user_id : UUID <<FK, Nullable>>
+  * nama_kategori : VARCHAR
+  * tipe : category_type
+  icon : VARCHAR
+  is_default : BOOLEAN
+  created_at : TIMESTAMPTZ
+}
+
+entity "transactions" as transactions {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  account_id : UUID <<FK, Nullable>>
+  category_id : INT <<FK, Nullable>>
+  * nama : VARCHAR
+  * nominal : NUMERIC
+  * jenis : transaction_type
+  * tanggal : DATE
+  merchant : VARCHAR
+  metode_bayar : VARCHAR
+  catatan : TEXT
+  created_at : TIMESTAMPTZ
+}
+
+entity "scan_results" as scan_results {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  transaction_id : UUID <<FK, Nullable>>
+  * jenis_scan : scan_type
+  file_url : TEXT
+  teks_ocr : TEXT
+  merchant_extracted : VARCHAR
+  nominal_extracted : NUMERIC
+  status : VARCHAR
+  created_at : TIMESTAMPTZ
+}
+
+entity "budgets" as budgets {
+  * id : UUID <<PK>>
+  --
+  * user_id : UUID <<FK>>
+  * periode : VARCHAR
+  * total_anggaran : NUMERIC
+  * persen_kebutuhan : NUMERIC
+  * persen_gaya_hidup : NUMERIC
+  * persen_tabungan : NUMERIC
+  created_at : TIMESTAMPTZ
+}
+
+entity "recommendations" as recommendations {
+  * id : UUID <<PK>>
+  --
+  * budget_id : UUID <<FK>>
+  * isi_saran : TEXT
+  lifestyle_reduction_needed : NUMERIC
+  created_at : TIMESTAMPTZ
+}
+
+' Relasi Crow's Foot tanpa caption
+users ||--o{ accounts
+users ||--o{ categories
+users ||--o{ transactions
+users ||--o{ scan_results
+users ||--o{ budgets
+
+accounts ||--o{ transactions
+categories ||--o{ transactions
+transactions |o--o| scan_results
+budgets ||--o{ recommendations
+
+@enduml
