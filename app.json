@@ -30,7 +30,14 @@
     },
     "plugins": [
       "expo-font",
-      "expo-status-bar"
+      "expo-status-bar",
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Finora memerlukan akses galeri untuk memilih foto profil dan memindai struk belanja.",
+          "cameraPermission": "Finora memerlukan izin kamera untuk memotret struk belanja secara langsung."
+        }
+      ]
     ]
   }
 }

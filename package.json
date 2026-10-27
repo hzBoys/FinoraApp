@@ -27,7 +27,8 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "build:apk": "npx eas-cli build -p android --profile preview",
-    "build:ipa": "npx eas-cli build -p ios --profile preview"
+    "build:ipa": "npx eas-cli build -p ios --profile preview",
+    "build:ios-sim": "npx eas-cli build -p ios --profile preview-simulator"
   },
   "private": true
 }
