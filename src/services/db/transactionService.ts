@@ -11,23 +11,55 @@ const CATEGORY_NAME_TO_ID: Record<string, number> = {
   Transfer: 7,
 };
 
+const MONTH_NAME_TO_NUMBER: Record<string, string> = {
+  jan: '01',
+  feb: '02',
+  mar: '03',
+  apr: '04',
+  mei: '05',
+  jun: '06',
+  jul: '07',
+  agu: '08',
+  sep: '09',
+  okt: '10',
+  nov: '11',
+  des: '12',
+};
+
 function formatIsoDate(dateInput: string): string {
+  if (!dateInput) return new Date().toISOString().split('T')[0];
+
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateInput)) {
     return dateInput;
   }
-  const day = parseInt(dateInput.replace(/[^0-9]/g, ''), 10);
-  if (!isNaN(day) && day >= 1 && day <= 31) {
-    return `2026-10-${String(day).padStart(2, '0')}`;
+
+  const clean = dateInput.toLowerCase();
+  const dayMatch = clean.match(/\b([1-9]|[12][0-9]|3[01])\b/);
+  const day = dayMatch ? dayMatch[1].padStart(2, '0') : '01';
+
+  let month = '10';
+  for (const [mName, mNum] of Object.entries(MONTH_NAME_TO_NUMBER)) {
+    if (clean.includes(mName)) {
+      month = mNum;
+      break;
+    }
   }
-  return new Date().toISOString().split('T')[0];
+
+  const yearMatch = clean.match(/\b(20\d\d)\b/);
+  const year = yearMatch ? yearMatch[1] : '2026';
+
+  return `${year}-${month}-${day}`;
 }
 
 function formatDisplayDate(isoDate: string): string {
-  if (!isoDate) return '18 Okt';
+  if (!isoDate) return '27 Okt';
   const parts = isoDate.split('-');
   if (parts.length === 3) {
     const day = parseInt(parts[2], 10);
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
+    const months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+      'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'
+    ];
     const monthIdx = parseInt(parts[1], 10) - 1;
     return `${day} ${months[monthIdx] || 'Okt'}`;
   }

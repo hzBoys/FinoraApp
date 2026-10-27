@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
+  Keyboard,
   KeyboardAvoidingView,
   Modal,
   Platform,
@@ -20,6 +21,24 @@ import { Ionicons } from '@expo/vector-icons';
 
 const EXPENSE_CATS = ['Makan', 'Transportasi', 'Belanja', 'Tagihan', 'Transfer'] as const;
 
+const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
+const SHORT_MONTHS = [
+  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
+  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
+];
+
+function getTodayState() {
+  const now = new Date();
+  const day = now.getDate();
+  const month = SHORT_MONTHS[now.getMonth()] || 'Okt';
+  const dayName = DAY_NAMES[now.getDay()] || 'Senin';
+  return {
+    date: `${day} ${month}`,
+    dayName: dayName,
+    isToday: true,
+  };
+}
+
 type AddTransactionModalProps = {
   visible: boolean;
   onClose: () => void;
@@ -35,7 +54,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   accounts = [],
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
-  const { colors } = useThemeContext();
+  const { colors, isDark } = useThemeContext();
+  const todayInitial = useMemo(() => getTodayState(), []);
+
   const [name, setName] = useState('');
   const [amountStr, setAmountStr] = useState('');
   const [isIncome, setIsIncome] = useState(false);
@@ -43,18 +64,21 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [selectedAccountId, setSelectedAccountId] = useState<number | string>(
     accounts.length > 0 ? accounts[0].account_id : 1
   );
-  const [date, setDate] = useState('27 Okt');
-  const [dayName, setDayName] = useState('Selasa');
+  const [date, setDate] = useState(todayInitial.date);
+  const [dayName, setDayName] = useState(todayInitial.dayName);
   const [isToday, setIsToday] = useState(true);
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [error, setError] = useState('');
 
-  const accountList = accounts.length > 0 ? accounts : [
-    { account_id: 1, nama_akun: 'Bank', tipe: 'bank' as const, saldo: 0, user_id: 1, updated_at: '' },
-    { account_id: 2, nama_akun: 'E-Wallet', tipe: 'ewallet' as const, saldo: 0, user_id: 1, updated_at: '' },
-    { account_id: 3, nama_akun: 'Investasi', tipe: 'investasi' as const, saldo: 0, user_id: 1, updated_at: '' },
-    { account_id: 4, nama_akun: 'Tunai', tipe: 'tunai' as const, saldo: 0, user_id: 1, updated_at: '' },
-  ];
+  const accountList =
+    accounts.length > 0
+      ? accounts
+      : [
+          { account_id: 1, nama_akun: 'Bank', tipe: 'bank' as const, saldo: 0, user_id: 1, updated_at: '' },
+          { account_id: 2, nama_akun: 'E-Wallet', tipe: 'ewallet' as const, saldo: 0, user_id: 1, updated_at: '' },
+          { account_id: 3, nama_akun: 'Investasi', tipe: 'investasi' as const, saldo: 0, user_id: 1, updated_at: '' },
+          { account_id: 4, nama_akun: 'Tunai', tipe: 'tunai' as const, saldo: 0, user_id: 1, updated_at: '' },
+        ];
 
   const resetForm = () => {
     setName('');
@@ -62,11 +86,19 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     setIsIncome(false);
     setCat('Makan');
     setSelectedAccountId(accountList[0]?.account_id ?? 1);
-    setDate('27 Okt');
-    setDayName('Selasa');
+    const today = getTodayState();
+    setDate(today.date);
+    setDayName(today.dayName);
     setIsToday(true);
+    setIsCalendarOpen(false);
     setError('');
   };
+
+  useEffect(() => {
+    if (visible) {
+      resetForm();
+    }
+  }, [visible]);
 
   const handleClose = () => {
     resetForm();
@@ -104,8 +136,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   };
 
   return (
-    <>
-      <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+    <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
+      <View style={{ flex: 1 }}>
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : undefined}
           style={styles.backdrop}
@@ -122,8 +154,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           >
             {/* Header Modal */}
             <View style={styles.header}>
-              <Text style={[styles.title, { color: colors.primary }]}>Catat Transaksi Manual</Text>
-              <TouchableOpacity onPress={handleClose} hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}>
+              <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.primary }]}>
+                Catat Transaksi Manual
+              </Text>
+              <TouchableOpacity
+                onPress={handleClose}
+                hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+                style={styles.closeBtn}
+              >
                 <Text style={[styles.closeIcon, { color: colors.textSecondary }]}>✕</Text>
               </TouchableOpacity>
             </View>
@@ -185,7 +223,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 style={[
                   styles.input,
                   {
-                    backgroundColor: colors.isDark ? '#242426' : colors.surface,
+                    backgroundColor: isDark ? '#242426' : colors.surface,
                     borderColor: colors.border,
                     color: colors.textPrimary,
                   },
@@ -193,7 +231,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 placeholder={isIncome ? 'Misal: Gaji, Bonus, Freelance' : 'Misal: Makan Siang, Kopi, Bensin'}
                 placeholderTextColor={colors.textMuted}
                 value={name}
-                onChangeText={(t) => { setName(t); setError(''); }}
+                onChangeText={(t) => {
+                  setName(t);
+                  setError('');
+                }}
               />
 
               {/* Input Nominal */}
@@ -202,7 +243,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 style={[
                   styles.input,
                   {
-                    backgroundColor: colors.isDark ? '#242426' : colors.surface,
+                    backgroundColor: isDark ? '#242426' : colors.surface,
                     borderColor: colors.border,
                     color: colors.textPrimary,
                   },
@@ -211,7 +252,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 placeholderTextColor={colors.textMuted}
                 keyboardType="number-pad"
                 value={amountStr}
-                onChangeText={(t) => { setAmountStr(t); setError(''); }}
+                onChangeText={(t) => {
+                  setAmountStr(t);
+                  setError('');
+                }}
               />
 
               {/* Pilihan Kategori */}
@@ -228,14 +272,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                             styles.catChip,
                             {
                               backgroundColor: active
-                                ? colors.isDark
+                                ? isDark
                                   ? '#2D6A4F'
                                   : colors.primary
-                                : colors.isDark
+                                : isDark
                                 ? '#242426'
                                 : colors.surface,
                               borderColor: active
-                                ? colors.isDark
+                                ? isDark
                                   ? colors.secondary
                                   : colors.primary
                                 : colors.border,
@@ -310,11 +354,14 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 style={[
                   styles.datePickerBtn,
                   {
-                    backgroundColor: colors.isDark ? '#242426' : colors.surface,
+                    backgroundColor: isDark ? '#242426' : colors.surface,
                     borderColor: colors.border,
                   },
                 ]}
-                onPress={() => setIsCalendarOpen(true)}
+                onPress={() => {
+                  Keyboard.dismiss();
+                  setIsCalendarOpen(true);
+                }}
                 activeOpacity={0.8}
               >
                 <Ionicons
@@ -324,7 +371,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.datePickerText, { color: colors.textPrimary }]}>
-                    {isToday ? `Hari ini (${dayName})` : dayName}, {date} 2026
+                    {isToday ? `Hari ini (${dayName}), ${date} 2026` : `${dayName}, ${date} 2026`}
                   </Text>
                 </View>
                 <Text style={[styles.changeDateText, { color: colors.secondary }]}>Ganti ›</Text>
@@ -339,7 +386,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     styles.cancelBtn,
                     {
                       borderColor: colors.border,
-                      backgroundColor: colors.isDark ? '#242426' : colors.surface,
+                      backgroundColor: isDark ? '#242426' : colors.surface,
                     },
                   ]}
                   onPress={handleClose}
@@ -350,7 +397,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.submitBtn,
-                    { backgroundColor: colors.isDark ? '#2D6A4F' : colors.primary },
+                    { backgroundColor: isDark ? '#2D6A4F' : colors.primary },
                   ]}
                   onPress={handleSave}
                   activeOpacity={0.85}
@@ -361,20 +408,23 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             </ScrollView>
           </View>
         </KeyboardAvoidingView>
-      </Modal>
 
-      {/* Calendar Date Picker Modal */}
-      <CalendarDatePickerModal
-        visible={isCalendarOpen}
-        selectedDate={date}
-        onSelectDate={(newDate, newDayName) => {
-          setDate(newDate);
-          setDayName(newDayName);
-          setIsToday(newDate === '26 Okt' || newDate === '27 Okt');
-        }}
-        onClose={() => setIsCalendarOpen(false)}
-      />
-    </>
+        {/* Calendar Picker as an In-Modal Overlay */}
+        {isCalendarOpen && (
+          <CalendarDatePickerModal
+            selectedDate={date}
+            onSelectDate={(newDate, newDayName) => {
+              setDate(newDate);
+              setDayName(newDayName);
+              const today = getTodayState();
+              setIsToday(newDate === today.date);
+              setIsCalendarOpen(false);
+            }}
+            onClose={() => setIsCalendarOpen(false)}
+          />
+        )}
+      </View>
+    </Modal>
   );
 };
 
@@ -403,9 +453,13 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '700',
   },
+  closeBtn: {
+    padding: 6,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   closeIcon: {
     fontSize: 18,
-    padding: 4,
   },
   body: {
     paddingBottom: 16,
@@ -471,9 +525,8 @@ const styles = StyleSheet.create({
     gap: 10,
   },
   datePickerText: {
-    flex: 1,
     fontFamily: FONT.semiBold,
-    fontSize: 14,
+    fontSize: 13,
   },
   changeDateText: {
     fontFamily: FONT.semiBold,
