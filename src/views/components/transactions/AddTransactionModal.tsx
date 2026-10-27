@@ -17,27 +17,10 @@ import { FONT } from '../../../constants/typography';
 import { Account, Tx } from '../../../models/types';
 import { CategoryIconBadge } from '../icons/CategoryIconBadge';
 import { CalendarDatePickerModal } from '../modals/CalendarDatePickerModal';
+import { getDeviceNow, SelectedDateResult } from '../../../utils/date';
 import { Ionicons } from '@expo/vector-icons';
 
 const EXPENSE_CATS = ['Makan', 'Transportasi', 'Belanja', 'Tagihan', 'Transfer'] as const;
-
-const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-const SHORT_MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
-];
-
-function getTodayState() {
-  const now = new Date();
-  const day = now.getDate();
-  const month = SHORT_MONTHS[now.getMonth()] || 'Okt';
-  const dayName = DAY_NAMES[now.getDay()] || 'Senin';
-  return {
-    date: `${day} ${month}`,
-    dayName: dayName,
-    isToday: true,
-  };
-}
 
 type AddTransactionModalProps = {
   visible: boolean;
@@ -55,7 +38,6 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
   const { colors, isDark } = useThemeContext();
-  const todayInitial = useMemo(() => getTodayState(), []);
 
   const [name, setName] = useState('');
   const [amountStr, setAmountStr] = useState('');
@@ -64,9 +46,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   const [selectedAccountId, setSelectedAccountId] = useState<number | string>(
     accounts.length > 0 ? accounts[0].account_id : 1
   );
-  const [date, setDate] = useState(todayInitial.date);
-  const [dayName, setDayName] = useState(todayInitial.dayName);
-  const [isToday, setIsToday] = useState(true);
+
+  // Dynamic device date
+  const [dateInfo, setDateInfo] = useState<SelectedDateResult>(getDeviceNow());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [error, setError] = useState('');
 
@@ -86,10 +68,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     setIsIncome(false);
     setCat('Makan');
     setSelectedAccountId(accountList[0]?.account_id ?? 1);
-    const today = getTodayState();
-    setDate(today.date);
-    setDayName(today.dayName);
-    setIsToday(true);
+    setDateInfo(getDeviceNow());
     setIsCalendarOpen(false);
     setError('');
   };
@@ -123,7 +102,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     const newTx: Tx = {
       id: Date.now(),
       name: trimmedName,
-      date,
+      date: dateInfo.isoDate, // Store accurate ISO date "YYYY-MM-DD"
       cat: isIncome ? 'Pemasukan' : cat,
       amount: numAmount,
       income: isIncome,
@@ -134,6 +113,10 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     onSave(newTx);
     handleClose();
   };
+
+  const dateLabel = dateInfo.isToday
+    ? `Hari ini (${dateInfo.dayName}), ${dateInfo.displayDate}`
+    : dateInfo.fullDisplay;
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={handleClose}>
@@ -348,7 +331,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 })}
               </View>
 
-              {/* Input Tanggal via Kalender */}
+              {/* Input Tanggal via Kalender Dinamis */}
               <Text style={[styles.label, { color: colors.textSecondary }]}>Tanggal Transaksi *</Text>
               <TouchableOpacity
                 style={[
@@ -371,7 +354,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 />
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.datePickerText, { color: colors.textPrimary }]}>
-                    {isToday ? `Hari ini (${dayName}), ${date} 2026` : `${dayName}, ${date} 2026`}
+                    {dateLabel}
                   </Text>
                 </View>
                 <Text style={[styles.changeDateText, { color: colors.secondary }]}>Ganti ›</Text>
@@ -412,12 +395,9 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
         {/* Calendar Picker as an In-Modal Overlay */}
         {isCalendarOpen && (
           <CalendarDatePickerModal
-            selectedDate={date}
-            onSelectDate={(newDate, newDayName) => {
-              setDate(newDate);
-              setDayName(newDayName);
-              const today = getTodayState();
-              setIsToday(newDate === today.date);
+            selectedDate={dateInfo.isoDate}
+            onSelectDate={(result) => {
+              setDateInfo(result);
               setIsCalendarOpen(false);
             }}
             onClose={() => setIsCalendarOpen(false)}

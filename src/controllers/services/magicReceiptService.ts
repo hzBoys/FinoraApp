@@ -1,3 +1,5 @@
+import { getDeviceNow } from '../../utils/date';
+
 export type OCRReceiptResult = {
   tanggal: string;
   nominal: number;
@@ -60,7 +62,7 @@ export function extractMockReceipt(mockText?: string): OCRReceiptResult {
   const kategori = autoCategorizeMerchant(merchant);
 
   return {
-    tanggal: '18 Okt',
+    tanggal: getDeviceNow().displayDate,
     nominal: 75000,
     merchant,
     metode_bayar: 'Tunai',

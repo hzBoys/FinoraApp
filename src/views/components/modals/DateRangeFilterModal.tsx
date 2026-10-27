@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import {
   Modal,
   StyleSheet,
@@ -9,6 +9,7 @@ import {
 import { useThemeContext } from '../../../context/ThemeContext';
 import { FONT } from '../../../constants/typography';
 import { LAYOUT } from '../../../constants/theme';
+import { getDeviceNow, MONTH_NAMES, SHORT_MONTHS } from '../../../utils/date';
 
 export type DateFilterType = 'all' | '7days' | '30days' | 'custom';
 
@@ -17,6 +18,8 @@ export type DateRangeValue = {
   label: string;
   startDay?: number;
   endDay?: number;
+  monthIndex?: number;
+  year?: number;
 };
 
 type DateRangeFilterModalProps = {
@@ -34,29 +37,35 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
   onClose,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
-  const { colors } = useThemeContext();
+  const { colors, isDark } = useThemeContext();
+  const now = useMemo(() => getDeviceNow(), []);
+
+  const totalDaysInMonth = new Date(now.year, now.monthIndex + 1, 0).getDate();
+
   const [selectedType, setSelectedType] = useState<DateFilterType>(currentRange.type);
   const [startDay, setStartDay] = useState<number>(currentRange.startDay ?? 1);
-  const [endDay, setEndDay] = useState<number>(currentRange.endDay ?? 18);
+  const [endDay, setEndDay] = useState<number>(currentRange.endDay ?? Math.min(now.day, totalDaysInMonth));
 
   const options: { type: DateFilterType; label: string; desc: string }[] = [
     { type: 'all', label: 'Semua Waktu (Default)', desc: 'Menampilkan seluruh riwayat transaksi' },
-    { type: '7days', label: '7 Hari Terakhir', desc: 'Transaksi dalam rentang 1 minggu terakhir' },
-    { type: '30days', label: '30 Hari Terakhir', desc: 'Transaksi dalam rentang 1 bulan penuh' },
-    { type: 'custom', label: 'Rentang Kustom', desc: 'Tentukan tanggal awal dan tanggal akhir spesifik' },
+    { type: '7days', label: '7 Hari Terakhir', desc: 'Transaksi dalam rentang 7 hari terakhir dari hari ini' },
+    { type: '30days', label: '30 Hari Terakhir', desc: 'Transaksi dalam rentang 30 hari terakhir' },
+    { type: 'custom', label: 'Rentang Kustom', desc: `Tentukan rentang hari di bulan ${now.monthName} ${now.year}` },
   ];
 
   const handleApply = () => {
     let label = 'Semua Waktu';
     if (selectedType === '7days') label = '7 Hari Terakhir';
     if (selectedType === '30days') label = '30 Hari Terakhir';
-    if (selectedType === 'custom') label = `${startDay}–${endDay} Okt`;
+    if (selectedType === 'custom') label = `${startDay}–${endDay} ${now.shortMonth} ${now.year}`;
 
     onApplyRange({
       type: selectedType,
       label,
       startDay: selectedType === 'custom' ? startDay : undefined,
       endDay: selectedType === 'custom' ? endDay : undefined,
+      monthIndex: now.monthIndex,
+      year: now.year,
     });
     onClose();
   };
@@ -64,9 +73,20 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
       <View style={styles.backdrop}>
-        <View style={[styles.sheet, { backgroundColor: colors.card, borderColor: colors.border, paddingBottom: bottomSafeInset + 20 }]}>
+        <View
+          style={[
+            styles.sheet,
+            {
+              backgroundColor: colors.card,
+              borderColor: colors.border,
+              paddingBottom: bottomSafeInset + 20,
+            },
+          ]}
+        >
           <View style={styles.header}>
-            <Text style={[styles.title, { color: colors.textPrimary }]}>Filter Periode Tanggal</Text>
+            <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.primary }]}>
+              Filter Periode Tanggal
+            </Text>
             <TouchableOpacity onPress={onClose} hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}>
               <Text style={[styles.closeIcon, { color: colors.textSecondary }]}>✕</Text>
             </TouchableOpacity>
@@ -82,14 +102,14 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
                     styles.optRow,
                     {
                       backgroundColor: active
-                        ? colors.isDark
+                        ? isDark
                           ? '#1C3328'
                           : '#F0FAF4'
-                        : colors.isDark
+                        : isDark
                         ? '#242426'
                         : colors.surface,
                       borderColor: active
-                        ? colors.isDark
+                        ? isDark
                           ? colors.secondary
                           : colors.primary
                         : colors.border,
@@ -104,7 +124,7 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
                         styles.optLabel,
                         {
                           color: active
-                            ? colors.isDark
+                            ? isDark
                               ? colors.secondary
                               : colors.primary
                             : colors.textPrimary,
@@ -121,7 +141,7 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
                       styles.radioCircle,
                       {
                         borderColor: active
-                          ? colors.isDark
+                          ? isDark
                             ? colors.secondary
                             : colors.primary
                           : colors.border,
@@ -150,12 +170,14 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
               style={[
                 styles.customRangeBox,
                 {
-                  backgroundColor: colors.isDark ? '#242426' : colors.surface,
+                  backgroundColor: isDark ? '#242426' : colors.surface,
                   borderColor: colors.border,
                 },
               ]}
             >
-              <Text style={[styles.customTitle, { color: colors.textPrimary }]}>Pilih Hari (Oktober 2026):</Text>
+              <Text style={[styles.customTitle, { color: colors.textPrimary }]}>
+                Pilih Hari ({now.monthName} {now.year}):
+              </Text>
               <View style={styles.rangeRow}>
                 <View style={{ flex: 1 }}>
                   <Text style={[styles.rangeLabel, { color: colors.textSecondary }]}>Dari Tanggal:</Text>
@@ -169,7 +191,9 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
                     >
                       <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-</Text>
                     </TouchableOpacity>
-                    <Text style={[styles.stepValue, { color: colors.textPrimary }]}>{startDay} Okt</Text>
+                    <Text style={[styles.stepValue, { color: colors.textPrimary }]}>
+                      {startDay} {now.shortMonth}
+                    </Text>
                     <TouchableOpacity
                       style={[
                         styles.stepBtn,
@@ -194,13 +218,15 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
                     >
                       <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>-</Text>
                     </TouchableOpacity>
-                    <Text style={[styles.stepValue, { color: colors.textPrimary }]}>{endDay} Okt</Text>
+                    <Text style={[styles.stepValue, { color: colors.textPrimary }]}>
+                      {endDay} {now.shortMonth}
+                    </Text>
                     <TouchableOpacity
                       style={[
                         styles.stepBtn,
                         { backgroundColor: colors.card, borderColor: colors.border },
                       ]}
-                      onPress={() => setEndDay((d) => Math.min(31, d + 1))}
+                      onPress={() => setEndDay((d) => Math.min(totalDaysInMonth, d + 1))}
                     >
                       <Text style={[styles.stepBtnText, { color: colors.textPrimary }]}>+</Text>
                     </TouchableOpacity>
@@ -217,7 +243,7 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
                 styles.cancelBtn,
                 {
                   borderColor: colors.border,
-                  backgroundColor: colors.isDark ? '#242426' : colors.surface,
+                  backgroundColor: isDark ? '#242426' : colors.surface,
                 },
               ]}
               onPress={onClose}
@@ -227,7 +253,7 @@ export const DateRangeFilterModal: React.FC<DateRangeFilterModalProps> = ({
             <TouchableOpacity
               style={[
                 styles.applyBtn,
-                { backgroundColor: colors.isDark ? '#2D6A4F' : colors.primary },
+                { backgroundColor: isDark ? '#2D6A4F' : colors.primary },
               ]}
               onPress={handleApply}
             >
@@ -340,8 +366,8 @@ const styles = StyleSheet.create({
   },
   stepValue: {
     fontFamily: FONT.bold,
-    fontSize: 13,
-    minWidth: 50,
+    fontSize: 12,
+    minWidth: 54,
     textAlign: 'center',
   },
   actionRow: {

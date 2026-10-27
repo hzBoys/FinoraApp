@@ -1,5 +1,6 @@
 import { supabase } from '../supabase';
 import { Budget } from '../../models/types';
+import { getCurrentPeriodKey } from '../../utils/date';
 
 export const budgetService = {
   async fetchBudget(userId: string, periode: string): Promise<Budget | null> {
@@ -38,7 +39,7 @@ export const budgetService = {
       const { error } = await supabase.from('budgets').upsert(
         {
           user_id: userId,
-          periode: budget.periode || '2026-10',
+          periode: budget.periode || getCurrentPeriodKey(),
           total_anggaran: budget.total_anggaran || 3000000,
           persen_kebutuhan: budget.persen_kebutuhan || 60,
           persen_gaya_hidup: budget.persen_gaya_hidup || 20,

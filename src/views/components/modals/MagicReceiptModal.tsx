@@ -18,6 +18,7 @@ import { Account } from '../../../models/types';
 import { OCRReceiptResult } from '../../../controllers/services/magicReceiptService';
 import { MagicReceiptStep } from '../../../controllers/useMagicReceipt';
 import { CategoryIconBadge } from '../icons/CategoryIconBadge';
+import { getDeviceNow } from '../../../utils/date';
 import { Ionicons } from '@expo/vector-icons';
 
 const EXPENSE_CATEGORIES = ['Makan', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan'];
@@ -60,7 +61,7 @@ export const MagicReceiptModal: React.FC<MagicReceiptModalProps> = ({
   const [merchant, setMerchant] = useState('');
   const [nominalStr, setNominalStr] = useState('');
   const [kategori, setKategori] = useState('Makan');
-  const [tanggal, setTanggal] = useState('18 Okt');
+  const [tanggal, setTanggal] = useState(getDeviceNow().displayDate);
 
   const accountList = accounts.length > 0 ? accounts : [
     { account_id: 1, nama_akun: 'Bank', tipe: 'bank' as const, saldo: 0, user_id: 1, updated_at: '' },

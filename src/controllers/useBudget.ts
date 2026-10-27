@@ -3,6 +3,7 @@ import { BUDGET_CATS, INITIAL_BUDGET } from '../models/mockData';
 import { Budget, Tx } from '../models/types';
 import { analyzeSmartAdvisor } from './services/smartAdvisorService';
 import { budgetService } from '../services/db/budgetService';
+import { getCurrentPeriodKey } from '../utils/date';
 
 export type CategoryLimits = Record<string, number>;
 
@@ -10,12 +11,14 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
   const [budget, setBudget] = useState<Budget>(INITIAL_BUDGET);
   const [categoryLimits, setCategoryLimits] = useState<CategoryLimits>({});
 
+  const activePeriod = useMemo(() => getCurrentPeriodKey(), []);
+
   useEffect(() => {
     if (!userId || typeof userId !== 'string' || !userId.includes('-')) return;
 
     let isMounted = true;
     async function loadBudget() {
-      const remote = await budgetService.fetchBudget(userId as string, '2026-10');
+      const remote = await budgetService.fetchBudget(userId as string, activePeriod);
       if (isMounted && remote) {
         setBudget(remote);
       }
@@ -25,7 +28,7 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
     return () => {
       isMounted = false;
     };
-  }, [userId]);
+  }, [userId, activePeriod]);
 
   const categorySpendings = useMemo(() => {
     return BUDGET_CATS.map((cat) => {
@@ -100,7 +103,7 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
 
     if (userId && typeof userId === 'string' && userId.includes('-')) {
       budgetService.upsertBudget(userId, {
-        periode: '2026-10',
+        periode: activePeriod,
         total_anggaran: total,
       });
     }

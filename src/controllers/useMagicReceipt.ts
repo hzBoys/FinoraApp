@@ -6,6 +6,7 @@ import {
   OCRReceiptResult,
   validateReceiptFile,
 } from './services/magicReceiptService';
+import { getDeviceNow } from '../utils/date';
 
 export type MagicReceiptStep = 'idle' | 'processing' | 'review';
 
@@ -28,7 +29,7 @@ export function useMagicReceipt(onTransactionSaved: (tx: Tx) => void) {
     imageUri: string,
     sampleMerchant: string = 'Warteg Sederhana',
     sampleNominal: number = 45000,
-    sampleDate: string = '18 Okt',
+    sampleDate: string = getDeviceNow().displayDate,
     samplePayment: string = 'QRIS'
   ) => {
     setReceiptImageUri(imageUri);
@@ -90,7 +91,7 @@ export function useMagicReceipt(onTransactionSaved: (tx: Tx) => void) {
             asset.uri,
             'Resto Seafood 88',
             85000,
-            '18 Okt',
+            getDeviceNow().displayDate,
             'E-Wallet'
           );
         }
@@ -102,7 +103,7 @@ export function useMagicReceipt(onTransactionSaved: (tx: Tx) => void) {
         'https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=500&auto=format&fit=crop&q=80',
         'Resto Seafood 88',
         85000,
-        '18 Okt',
+        getDeviceNow().displayDate,
         'E-Wallet'
       );
     }
@@ -132,7 +133,7 @@ export function useMagicReceipt(onTransactionSaved: (tx: Tx) => void) {
             result.assets[0].uri,
             'Kopi Kenangan Senja',
             38000,
-            '18 Okt',
+            getDeviceNow().displayDate,
             'Bank'
           );
         }
@@ -144,7 +145,7 @@ export function useMagicReceipt(onTransactionSaved: (tx: Tx) => void) {
         'https://images.unsplash.com/photo-1501339847302-ac426a4a7cbb?w=500&auto=format&fit=crop&q=80',
         'Kopi Kenangan Senja',
         38000,
-        '18 Okt',
+        getDeviceNow().displayDate,
         'Bank'
       );
     }

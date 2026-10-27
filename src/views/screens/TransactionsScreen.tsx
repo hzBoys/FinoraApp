@@ -14,6 +14,7 @@ import { Tx } from '../../models/types';
 import { TransactionRowItem } from '../components/transactions/TransactionRowItem';
 import { CategoryIconBadge } from '../components/icons/CategoryIconBadge';
 import { DateRangeFilterModal, DateRangeValue } from '../components/modals/DateRangeFilterModal';
+import { parseIsoOrDisplayDate } from '../../utils/date';
 import { Ionicons } from '@expo/vector-icons';
 
 const FILTER_CATS = ['Semua', 'Pemasukan', 'Makan', 'Belanja', 'Transportasi', 'Tagihan', 'Transfer'];
@@ -48,25 +49,59 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
     label: 'Semua Waktu',
   });
 
-  // Filter transactions based on date range
+  // Filter transactions based on dynamic date range
   const dateFilteredTransactions = useMemo(() => {
     if (dateRange.type === 'all') return transactions;
 
+    const now = new Date();
+    const endOfToday = new Date(
+      now.getFullYear(),
+      now.getMonth(),
+      now.getDate(),
+      23,
+      59,
+      59,
+      999
+    ).getTime();
+
     return transactions.filter((tx) => {
-      // Parse day number from "18 Okt" or similar
-      const dayNum = parseInt(tx.date.replace(/[^0-9]/g, ''), 10);
-      if (isNaN(dayNum)) return true;
+      const parsed = parseIsoOrDisplayDate(tx.date);
+      const txTime = new Date(parsed.year, parsed.monthIndex, parsed.day).getTime();
 
       if (dateRange.type === '7days') {
-        // e.g., assuming current date is 18 Okt, 7 days back is 11-18
-        return dayNum >= 11 && dayNum <= 18;
+        const sevenDaysAgo = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() - 7,
+          0,
+          0,
+          0,
+          0
+        ).getTime();
+        return txTime >= sevenDaysAgo && txTime <= endOfToday;
       }
+
       if (dateRange.type === '30days') {
-        return dayNum >= 1 && dayNum <= 31;
+        const thirtyDaysAgo = new Date(
+          now.getFullYear(),
+          now.getMonth(),
+          now.getDate() - 30,
+          0,
+          0,
+          0,
+          0
+        ).getTime();
+        return txTime >= thirtyDaysAgo && txTime <= endOfToday;
       }
+
       if (dateRange.type === 'custom' && dateRange.startDay && dateRange.endDay) {
-        return dayNum >= dateRange.startDay && dayNum <= dateRange.endDay;
+        const targetYear = dateRange.year ?? now.getFullYear();
+        const targetMonth = dateRange.monthIndex ?? now.getMonth();
+        const startTime = new Date(targetYear, targetMonth, dateRange.startDay, 0, 0, 0, 0).getTime();
+        const endTime = new Date(targetYear, targetMonth, dateRange.endDay, 23, 59, 59, 999).getTime();
+        return txTime >= startTime && txTime <= endTime;
       }
+
       return true;
     });
   }, [transactions, dateRange]);

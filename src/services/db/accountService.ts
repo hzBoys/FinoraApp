@@ -24,7 +24,7 @@ export const accountService = {
         nama_akun: item.nama_akun,
         tipe: item.tipe as AccountType,
         saldo: Number(item.saldo),
-        updated_at: item.updated_at ? item.updated_at.split('T')[0] : '2026-10-26',
+        updated_at: item.updated_at ? item.updated_at.split('T')[0] : new Date().toISOString().split('T')[0],
       }));
     } catch (err) {
       console.warn('accountService.fetchAccounts exception:', err);

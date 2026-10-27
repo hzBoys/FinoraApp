@@ -8,23 +8,21 @@ import {
 import { useThemeContext } from '../../../context/ThemeContext';
 import { FONT } from '../../../constants/typography';
 import { Ionicons } from '@expo/vector-icons';
+import {
+  buildDateResult,
+  getDeviceNow,
+  MONTH_NAMES,
+  parseIsoOrDisplayDate,
+  SelectedDateResult,
+  SHORT_DAYS,
+  SHORT_MONTHS,
+} from '../../../utils/date';
 
 type CalendarDatePickerModalProps = {
-  selectedDate: string; // e.g. "27 Okt" or "15 Okt"
-  onSelectDate: (formattedDate: string, dayName: string) => void;
+  selectedDate: string; // e.g. "27 Okt 2026" or "2026-10-27"
+  onSelectDate: (result: SelectedDateResult) => void;
   onClose: () => void;
 };
-
-const DAY_NAMES = ['Minggu', 'Senin', 'Selasa', 'Rabu', 'Kamis', 'Jumat', 'Sabtu'];
-const SHORT_DAYS = ['Min', 'Sen', 'Sel', 'Rab', 'Kam', 'Jum', 'Sab'];
-const MONTH_NAMES = [
-  'Januari', 'Februari', 'Maret', 'April', 'Mei', 'Juni',
-  'Juli', 'Agustus', 'September', 'Oktober', 'November', 'Desember',
-];
-const SHORT_MONTHS = [
-  'Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun',
-  'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des',
-];
 
 export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = ({
   selectedDate,
@@ -33,25 +31,19 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
 }) => {
   const { colors, isDark } = useThemeContext();
 
-  // Dynamic today reference
-  const now = useMemo(() => new Date(), []);
-  const todayDay = now.getDate();
-  const todayMonth = now.getMonth();
-  const todayYear = now.getFullYear();
+  // Dynamic device today reference
+  const now = useMemo(() => getDeviceNow(), []);
+  const initialParsed = useMemo(() => parseIsoOrDisplayDate(selectedDate), [selectedDate]);
 
-  // Selected date parsing
-  const parsedDay = parseInt(selectedDate.replace(/[^0-9]/g, ''), 10);
-  const initialDay = !isNaN(parsedDay) && parsedDay >= 1 && parsedDay <= 31 ? parsedDay : todayDay;
-
-  const [year, setYear] = useState(todayYear);
-  const [monthIndex, setMonthIndex] = useState(todayMonth);
-  const [activeDay, setActiveDay] = useState<number>(initialDay);
+  const [year, setYear] = useState(initialParsed.year);
+  const [monthIndex, setMonthIndex] = useState(initialParsed.monthIndex);
+  const [activeDay, setActiveDay] = useState<number>(initialParsed.day);
 
   useEffect(() => {
-    const p = parseInt(selectedDate.replace(/[^0-9]/g, ''), 10);
-    if (!isNaN(p) && p >= 1 && p <= 31) {
-      setActiveDay(p);
-    }
+    const p = parseIsoOrDisplayDate(selectedDate);
+    setYear(p.year);
+    setMonthIndex(p.monthIndex);
+    setActiveDay(p.day);
   }, [selectedDate]);
 
   // Total days in currently viewed month
@@ -59,23 +51,22 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
   const firstDayOfWeek = new Date(year, monthIndex, 1).getDay(); // 0 = Minggu
 
   // Active day details
-  const activeDateObj = new Date(year, monthIndex, Math.min(activeDay, totalDaysInMonth));
-  const activeDayName = DAY_NAMES[activeDateObj.getDay()];
+  const activeResult = buildDateResult(year, monthIndex, Math.min(activeDay, totalDaysInMonth));
   const isTodayActive =
-    activeDay === todayDay && monthIndex === todayMonth && year === todayYear;
+    activeResult.day === now.day &&
+    activeResult.monthIndex === now.monthIndex &&
+    activeResult.year === now.year;
 
   const handleConfirm = () => {
-    const finalDay = Math.min(activeDay, totalDaysInMonth);
-    const finalDateObj = new Date(year, monthIndex, finalDay);
-    const finalDayName = DAY_NAMES[finalDateObj.getDay()];
-    onSelectDate(`${finalDay} ${SHORT_MONTHS[monthIndex]}`, finalDayName);
+    const finalResult = buildDateResult(year, monthIndex, Math.min(activeDay, totalDaysInMonth));
+    onSelectDate(finalResult);
     onClose();
   };
 
   const handlePickToday = () => {
-    setYear(todayYear);
-    setMonthIndex(todayMonth);
-    setActiveDay(todayDay);
+    setYear(now.year);
+    setMonthIndex(now.monthIndex);
+    setActiveDay(now.day);
   };
 
   const daysArray = Array.from({ length: totalDaysInMonth }, (_, i) => i + 1);
@@ -96,7 +87,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
         <View style={styles.header}>
           <View style={{ flex: 1 }}>
             <Text style={[styles.title, { color: colors.textPrimary }]}>
-              {activeDayName}, {activeDay} {MONTH_NAMES[monthIndex]}
+              {activeResult.dayName}, {activeResult.day} {MONTH_NAMES[monthIndex]}
             </Text>
             <View style={styles.subTitleRow}>
               <Text style={[styles.subTitle, { color: colors.textSecondary }]}>
@@ -231,7 +222,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
           {daysArray.map((day) => {
             const isSelected = activeDay === day;
             const isToday =
-              day === todayDay && monthIndex === todayMonth && year === todayYear;
+              day === now.day && monthIndex === now.monthIndex && year === now.year;
             const dayDate = new Date(year, monthIndex, day);
             const isSunday = dayDate.getDay() === 0;
 
@@ -297,7 +288,7 @@ export const CalendarDatePickerModal: React.FC<CalendarDatePickerModalProps> = (
             activeOpacity={0.85}
           >
             <Text style={styles.confirmText}>
-              Pilih {isTodayActive ? 'Hari Ini' : `${activeDayName}, ${activeDay} ${SHORT_MONTHS[monthIndex]}`}
+              Pilih {isTodayActive ? 'Hari Ini' : `${activeResult.dayName}, ${activeResult.displayDate}`}
             </Text>
           </TouchableOpacity>
         </View>

@@ -1,10 +1,13 @@
 import { Account, Budget, Category, Tx } from './types';
+import { getCurrentPeriodLabel } from '../utils/date';
+
+const todayIso = new Date().toISOString().split('T')[0];
 
 export const INITIAL_ACCOUNTS: Account[] = [
-  { account_id: 1, user_id: 1, nama_akun: 'Bank', tipe: 'bank', saldo: 0, updated_at: '2026-10-26' },
-  { account_id: 2, user_id: 1, nama_akun: 'E-Wallet', tipe: 'ewallet', saldo: 0, updated_at: '2026-10-26' },
-  { account_id: 3, user_id: 1, nama_akun: 'Investasi', tipe: 'investasi', saldo: 0, updated_at: '2026-10-26' },
-  { account_id: 4, user_id: 1, nama_akun: 'Tunai', tipe: 'tunai', saldo: 0, updated_at: '2026-10-26' },
+  { account_id: 1, user_id: 1, nama_akun: 'Bank', tipe: 'bank', saldo: 0, updated_at: todayIso },
+  { account_id: 2, user_id: 1, nama_akun: 'E-Wallet', tipe: 'ewallet', saldo: 0, updated_at: todayIso },
+  { account_id: 3, user_id: 1, nama_akun: 'Investasi', tipe: 'investasi', saldo: 0, updated_at: todayIso },
+  { account_id: 4, user_id: 1, nama_akun: 'Tunai', tipe: 'tunai', saldo: 0, updated_at: todayIso },
 ];
 
 export const CATEGORIES: Category[] = [
@@ -40,7 +43,7 @@ export const BUDGET_CATS = [
 export const INITIAL_BUDGET: Budget = {
   budget_id: 1,
   user_id: 1,
-  periode: 'Oktober 2026',
+  periode: getCurrentPeriodLabel(),
   persen_kebutuhan: 60,
   persen_gaya_hidup: 20,
   persen_tabungan: 20,

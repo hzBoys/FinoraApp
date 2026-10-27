@@ -4,6 +4,7 @@ import { useThemeContext } from '../../context/ThemeContext';
 import { LAYOUT } from '../../constants/theme';
 import { FONT } from '../../constants/typography';
 import { CategoryIconBadge } from '../components/icons/CategoryIconBadge';
+import { getCurrentPeriodLabel } from '../../utils/date';
 import { Ionicons } from '@expo/vector-icons';
 
 type BudgetCategoryItem = {
@@ -28,7 +29,7 @@ type BudgetScreenProps = {
 };
 
 export const BudgetScreen: React.FC<BudgetScreenProps> = ({
-  periode = 'Oktober 2026',
+  periode = getCurrentPeriodLabel(),
   totalBudget,
   totalUsed,
   totalPct,
