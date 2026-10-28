@@ -1,9 +1,13 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
+  NativeScrollEvent,
+  NativeSyntheticEvent,
+  ScrollView,
   StyleSheet,
+  useWindowDimensions,
   View,
 } from 'react-native';
 import {
@@ -27,7 +31,7 @@ import {
 } from './src/services/db/notificationService';
 
 import { AppHeader } from './src/views/components/navigation/AppHeader';
-import { BottomTabBar } from './src/views/components/navigation/BottomTabBar';
+import { BottomTabBar, TABS } from './src/views/components/navigation/BottomTabBar';
 import { AddTransactionModal } from './src/views/components/transactions/AddTransactionModal';
 import { MagicReceiptModal } from './src/views/components/modals/MagicReceiptModal';
 import { EditProfileModal } from './src/views/components/modals/EditProfileModal';
@@ -61,6 +65,30 @@ function MainApp() {
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(
     DEFAULT_NOTIFICATION_PREFERENCES
   );
+
+  // Horizontal Swiping Pager Mechanics
+  const { width: screenWidth } = useWindowDimensions();
+  const horizontalScrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+
+  const handleSelectTab = (tabKey: TabKey) => {
+    const index = TABS.findIndex((t) => t.key === tabKey);
+    if (index !== -1) {
+      setActiveTab(tabKey);
+      horizontalScrollRef.current?.scrollTo({
+        x: index * screenWidth,
+        animated: true,
+      });
+    }
+  };
+
+  const handleMomentumScrollEnd = (e: NativeSyntheticEvent<NativeScrollEvent>) => {
+    const contentOffsetX = e.nativeEvent.contentOffset.x;
+    const pageIndex = Math.round(contentOffsetX / screenWidth);
+    const targetTab = TABS[pageIndex]?.key;
+    if (targetTab && targetTab !== activeTab) {
+      setActiveTab(targetTab);
+    }
+  };
 
   // Sync notification preferences on user change
   useEffect(() => {
@@ -223,70 +251,82 @@ function MainApp() {
       <AppHeader
         userName={currentUser.nama}
         avatarUri={currentUser.avatarUri}
-        onPressProfile={() => setActiveTab('profile')}
+        onPressProfile={() => handleSelectTab('profile')}
       />
 
-      {/* Main Screen Views */}
-      {activeTab === 'home' && (
-        <HomeScreen
-          totalBalance={totalBalance}
-          pillars={pillars}
-          totalIn={totalIn}
-          totalOut={totalConsumptionOut}
-          totalBudget={budget.total_anggaran}
-          totalUsed={totalUsed}
-          totalPct={totalPct}
-          totalRemaining={totalRemaining}
-          categorySpendings={categorySpendings}
-          advisorRecommendation={advisorAnalysis.recommendationText}
-          recentTransactions={recentTransactions}
-          onOpenAddModal={() => setIsAddModalOpen(true)}
-          onScanReceipt={() => magicReceipt.setIsOpen(true)}
-        />
-      )}
+      {/* Horizontal Paging Screen Container for Seamless Sliding */}
+      <ScrollView
+        ref={horizontalScrollRef}
+        horizontal
+        pagingEnabled
+        showsHorizontalScrollIndicator={false}
+        bounces={false}
+        overScrollMode="never"
+        scrollEventThrottle={16}
+        onMomentumScrollEnd={handleMomentumScrollEnd}
+        style={styles.pager}
+      >
+        <View style={{ width: screenWidth, flex: 1 }}>
+          <HomeScreen
+            totalBalance={totalBalance}
+            pillars={pillars}
+            totalIn={totalIn}
+            totalOut={totalConsumptionOut}
+            totalBudget={budget.total_anggaran}
+            totalUsed={totalUsed}
+            totalPct={totalPct}
+            totalRemaining={totalRemaining}
+            categorySpendings={categorySpendings}
+            advisorRecommendation={advisorAnalysis.recommendationText}
+            recentTransactions={recentTransactions}
+            onOpenAddModal={() => setIsAddModalOpen(true)}
+            onScanReceipt={() => magicReceipt.setIsOpen(true)}
+          />
+        </View>
 
-      {activeTab === 'transactions' && (
-        <TransactionsScreen
-          transactions={filtered}
-          query={query}
-          onChangeQuery={setQuery}
-          activeCat={activeCat}
-          onSelectCat={setActiveCat}
-          totalIn={filteredIn}
-          totalOut={filteredOut}
-        />
-      )}
+        <View style={{ width: screenWidth, flex: 1 }}>
+          <TransactionsScreen
+            transactions={filtered}
+            query={query}
+            onChangeQuery={setQuery}
+            activeCat={activeCat}
+            onSelectCat={setActiveCat}
+            totalIn={filteredIn}
+            totalOut={filteredOut}
+          />
+        </View>
 
-      {activeTab === 'budget' && (
-        <BudgetScreen
-          periode={budget.periode}
-          totalBudget={budget.total_anggaran}
-          totalUsed={totalUsed}
-          totalPct={totalPct}
-          totalRemaining={totalRemaining}
-          unallocated={unallocated}
-          categorySpendings={categorySpendings}
-          nearLimitCategories={nearLimitCategories}
-          onOpenSetBudget={() => setIsSetBudgetOpen(true)}
-        />
-      )}
+        <View style={{ width: screenWidth, flex: 1 }}>
+          <BudgetScreen
+            periode={budget.periode}
+            totalBudget={budget.total_anggaran}
+            totalUsed={totalUsed}
+            totalPct={totalPct}
+            totalRemaining={totalRemaining}
+            unallocated={unallocated}
+            categorySpendings={categorySpendings}
+            nearLimitCategories={nearLimitCategories}
+            onOpenSetBudget={() => setIsSetBudgetOpen(true)}
+          />
+        </View>
 
-      {activeTab === 'profile' && (
-        <ProfileScreen
-          user={currentUser}
-          themeMode={themeMode}
-          onPickImage={pickAvatar}
-          onOpenEditProfile={() => setIsEditProfileOpen(true)}
-          onOpenThemeModal={() => setIsThemeModalOpen(true)}
-          onOpenNotificationSettings={() => setIsNotifModalOpen(true)}
-          notificationSubtitle={
-            notifPrefs.dailyReminder
-              ? `Aktif (${notifPrefs.reminderTime} WIB)`
-              : 'Nonaktif'
-          }
-          totalBalance={totalBalance}
-        />
-      )}
+        <View style={{ width: screenWidth, flex: 1 }}>
+          <ProfileScreen
+            user={currentUser}
+            themeMode={themeMode}
+            onPickImage={pickAvatar}
+            onOpenEditProfile={() => setIsEditProfileOpen(true)}
+            onOpenThemeModal={() => setIsThemeModalOpen(true)}
+            onOpenNotificationSettings={() => setIsNotifModalOpen(true)}
+            notificationSubtitle={
+              notifPrefs.dailyReminder
+                ? `Aktif (${notifPrefs.reminderTime} WIB)`
+                : 'Nonaktif'
+            }
+            totalBalance={totalBalance}
+          />
+        </View>
+      </ScrollView>
 
       {/* 1. Modal Catat Transaksi Manual (Dengan Kalender) */}
       <AddTransactionModal
@@ -346,7 +386,7 @@ function MainApp() {
       {/* Bottom Navigation Tab Bar */}
       <BottomTabBar
         activeTab={activeTab}
-        onSelectTab={setActiveTab}
+        onSelectTab={handleSelectTab}
       />
     </View>
   );
@@ -387,6 +427,9 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: {
+    flex: 1,
+  },
+  pager: {
     flex: 1,
   },
 });

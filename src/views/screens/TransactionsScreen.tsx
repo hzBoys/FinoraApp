@@ -191,6 +191,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
       <View style={styles.filterScrollWrap}>
         <ScrollView
           horizontal
+          nestedScrollEnabled={true}
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.filterContent}
         >
