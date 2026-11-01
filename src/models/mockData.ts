@@ -7,7 +7,6 @@ export const INITIAL_ACCOUNTS: Account[] = [
   { account_id: 1, user_id: 1, nama_akun: 'Bank', tipe: 'bank', saldo: 0, updated_at: todayIso },
   { account_id: 2, user_id: 1, nama_akun: 'E-Wallet', tipe: 'ewallet', saldo: 0, updated_at: todayIso },
   { account_id: 3, user_id: 1, nama_akun: 'Investasi', tipe: 'investasi', saldo: 0, updated_at: todayIso },
-  { account_id: 4, user_id: 1, nama_akun: 'Tunai', tipe: 'tunai', saldo: 0, updated_at: todayIso },
 ];
 
 export const CATEGORIES: Category[] = [

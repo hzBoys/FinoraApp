@@ -56,10 +56,6 @@ const APPLE_ICON_MAP: Record<string, IconConfig> = {
     name: 'trending-up',
     color: '#32ADE6', // Apple Cyan
   },
-  Tunai: {
-    name: 'cash',
-    color: '#00C7BE', // Apple Teal
-  },
   Semua: {
     name: 'grid',
     color: '#8E8E93', // Apple Slate Gray

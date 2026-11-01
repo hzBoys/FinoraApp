@@ -18,6 +18,7 @@ import { Account, Tx } from '../../../models/types';
 import { CategoryIconBadge } from '../icons/CategoryIconBadge';
 import { CalendarDatePickerModal } from '../modals/CalendarDatePickerModal';
 import { getDeviceNow, SelectedDateResult } from '../../../utils/date';
+import { formatRupiahInput, parseRupiahInput } from '../../../utils/currency';
 import { Ionicons } from '@expo/vector-icons';
 
 const EXPENSE_CATS = ['Makan', 'Transportasi', 'Belanja', 'Tagihan', 'Transfer'] as const;
@@ -59,7 +60,6 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
           { account_id: 1, nama_akun: 'Bank', tipe: 'bank' as const, saldo: 0, user_id: 1, updated_at: '' },
           { account_id: 2, nama_akun: 'E-Wallet', tipe: 'ewallet' as const, saldo: 0, user_id: 1, updated_at: '' },
           { account_id: 3, nama_akun: 'Investasi', tipe: 'investasi' as const, saldo: 0, user_id: 1, updated_at: '' },
-          { account_id: 4, nama_akun: 'Tunai', tipe: 'tunai' as const, saldo: 0, user_id: 1, updated_at: '' },
         ];
 
   const resetForm = () => {
@@ -90,9 +90,8 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       setError('Nama transaksi wajib diisi.');
       return;
     }
-    const cleanAmount = amountStr.replace(/[^0-9]/g, '');
-    const numAmount = Number(cleanAmount);
-    if (!cleanAmount || isNaN(numAmount) || numAmount <= 0) {
+    const numAmount = parseRupiahInput(amountStr);
+    if (numAmount <= 0) {
       setError('Nominal harus berupa angka lebih besar dari 0.');
       return;
     }
@@ -222,24 +221,28 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
 
               {/* Input Nominal */}
               <Text style={[styles.label, { color: colors.textSecondary }]}>Nominal (Rp) *</Text>
-              <TextInput
+              <View
                 style={[
-                  styles.input,
+                  styles.currencyInputWrap,
                   {
                     backgroundColor: isDark ? '#242426' : colors.surface,
                     borderColor: colors.border,
-                    color: colors.textPrimary,
                   },
                 ]}
-                placeholder="0"
-                placeholderTextColor={colors.textMuted}
-                keyboardType="number-pad"
-                value={amountStr}
-                onChangeText={(t) => {
-                  setAmountStr(t);
-                  setError('');
-                }}
-              />
+              >
+                <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>Rp</Text>
+                <TextInput
+                  style={[styles.currencyInput, { color: colors.textPrimary }]}
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                  keyboardType="number-pad"
+                  value={amountStr}
+                  onChangeText={(t) => {
+                    setAmountStr(formatRupiahInput(t));
+                    setError('');
+                  }}
+                />
+              </View>
 
               {/* Pilihan Kategori */}
               {!isIncome && (
@@ -475,6 +478,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontFamily: FONT.regular,
     fontSize: 14,
+  },
+  currencyInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+  },
+  currencyPrefix: {
+    fontFamily: FONT.bold,
+    fontSize: 15,
+    marginRight: 8,
+  },
+  currencyInput: {
+    flex: 1,
+    fontFamily: FONT.bold,
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   catGrid: {
     flexDirection: 'row',

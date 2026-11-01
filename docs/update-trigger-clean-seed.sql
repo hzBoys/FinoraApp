@@ -16,13 +16,12 @@ BEGIN
   INSERT INTO public.users (id, nama, username, email)
   VALUES (NEW.id, v_nama, v_username, NEW.email);
 
-  -- Seed initial 4 default financial accounts with 0.00 balance
+  -- Seed initial 3 default financial accounts with 0.00 balance (Bank, E-Wallet, Investasi)
   INSERT INTO public.accounts (user_id, nama_akun, tipe, saldo)
   VALUES
     (NEW.id, 'Bank', 'bank', 0.00),
     (NEW.id, 'E-Wallet', 'ewallet', 0.00),
-    (NEW.id, 'Investasi', 'investasi', 0.00),
-    (NEW.id, 'Tunai', 'tunai', 0.00);
+    (NEW.id, 'Investasi', 'investasi', 0.00);
 
   -- Seed initial budget for current month with 0.00 allocation
   INSERT INTO public.budgets (user_id, periode, total_anggaran, persen_kebutuhan, persen_gaya_hidup, persen_tabungan)

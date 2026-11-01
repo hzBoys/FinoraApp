@@ -15,6 +15,7 @@ import { LAYOUT } from '../../../constants/theme';
 import { FONT } from '../../../constants/typography';
 import { CategoryLimits } from '../../../controllers/useBudget';
 import { CategoryIconBadge } from '../icons/CategoryIconBadge';
+import { formatRupiahInput, parseRupiahInput } from '../../../utils/currency';
 
 type SetBudgetModalProps = {
   visible: boolean;
@@ -34,26 +35,28 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
   const { colors, isDark } = useThemeContext();
   const [mode, setMode] = useState<'advisor' | 'manual'>('advisor');
 
-  const [totalStr, setTotalStr] = useState(currentTotal > 0 ? String(currentTotal) : '3000000');
-  const [makanStr, setMakanStr] = useState('900000');
-  const [transStr, setTransStr] = useState('450000');
-  const [tagihanStr, setTagihanStr] = useState('450000');
-  const [belanjaStr, setBelanjaStr] = useState('600000');
+  const [totalStr, setTotalStr] = useState(
+    currentTotal > 0 ? formatRupiahInput(currentTotal) : '3.000.000'
+  );
+  const [makanStr, setMakanStr] = useState('900.000');
+  const [transStr, setTransStr] = useState('450.000');
+  const [tagihanStr, setTagihanStr] = useState('450.000');
+  const [belanjaStr, setBelanjaStr] = useState('600.000');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (visible) {
       const initTotal = currentTotal > 0 ? currentTotal : 3000000;
-      setTotalStr(String(initTotal));
-      setMakanStr(String(Math.round(initTotal * 0.3)));
-      setTransStr(String(Math.round(initTotal * 0.15)));
-      setTagihanStr(String(Math.round(initTotal * 0.15)));
-      setBelanjaStr(String(Math.round(initTotal * 0.2)));
+      setTotalStr(formatRupiahInput(initTotal));
+      setMakanStr(formatRupiahInput(Math.round(initTotal * 0.3)));
+      setTransStr(formatRupiahInput(Math.round(initTotal * 0.15)));
+      setTagihanStr(formatRupiahInput(Math.round(initTotal * 0.15)));
+      setBelanjaStr(formatRupiahInput(Math.round(initTotal * 0.2)));
       setError('');
     }
   }, [visible, currentTotal]);
 
-  const numTotal = Number(totalStr.replace(/[^0-9]/g, '')) || 0;
+  const numTotal = parseRupiahInput(totalStr);
 
   // Smart advisor live auto-breakdown
   const advisorMakan = Math.round(numTotal * 0.3);
@@ -77,10 +80,10 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
       return;
     }
 
-    const numMakan = Number(makanStr.replace(/[^0-9]/g, '')) || 0;
-    const numTrans = Number(transStr.replace(/[^0-9]/g, '')) || 0;
-    const numTagihan = Number(tagihanStr.replace(/[^0-9]/g, '')) || 0;
-    const numBelanja = Number(belanjaStr.replace(/[^0-9]/g, '')) || 0;
+    const numMakan = parseRupiahInput(makanStr);
+    const numTrans = parseRupiahInput(transStr);
+    const numTagihan = parseRupiahInput(tagihanStr);
+    const numBelanja = parseRupiahInput(belanjaStr);
 
     const sumCategories = numMakan + numTrans + numTagihan + numBelanja;
     if (sumCategories > numTotal) {
@@ -179,24 +182,28 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
           <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={styles.body}>
             {/* Input Total Anggaran */}
             <Text style={[styles.label, { color: colors.textSecondary }]}>Total Anggaran Bulanan (Rp) *</Text>
-            <TextInput
+            <View
               style={[
-                styles.input,
+                styles.currencyInputWrap,
                 {
                   backgroundColor: isDark ? '#242426' : colors.surface,
                   borderColor: colors.border,
-                  color: colors.textPrimary,
                 },
               ]}
-              value={totalStr}
-              onChangeText={(t) => {
-                setTotalStr(t);
-                setError('');
-              }}
-              keyboardType="number-pad"
-              placeholder="3000000"
-              placeholderTextColor={colors.textMuted}
-            />
+            >
+              <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>Rp</Text>
+              <TextInput
+                style={[styles.currencyInput, { color: colors.textPrimary }]}
+                value={totalStr}
+                onChangeText={(t) => {
+                  setTotalStr(formatRupiahInput(t));
+                  setError('');
+                }}
+                keyboardType="number-pad"
+                placeholder="0"
+                placeholderTextColor={colors.textMuted}
+              />
+            </View>
 
             {/* MODE 1: SMART ADVISOR BREAKDOWN */}
             {mode === 'advisor' && (
@@ -259,8 +266,10 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
                     <TextInput
                       style={[styles.smallInput, { backgroundColor: isDark ? '#242426' : colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                       value={makanStr}
-                      onChangeText={(t) => { setMakanStr(t); setError(''); }}
+                      onChangeText={(t) => { setMakanStr(formatRupiahInput(t)); setError(''); }}
                       keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
                     />
                   </View>
                 </View>
@@ -272,8 +281,10 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
                     <TextInput
                       style={[styles.smallInput, { backgroundColor: isDark ? '#242426' : colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                       value={transStr}
-                      onChangeText={(t) => { setTransStr(t); setError(''); }}
+                      onChangeText={(t) => { setTransStr(formatRupiahInput(t)); setError(''); }}
                       keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
                     />
                   </View>
                 </View>
@@ -285,8 +296,10 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
                     <TextInput
                       style={[styles.smallInput, { backgroundColor: isDark ? '#242426' : colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                       value={tagihanStr}
-                      onChangeText={(t) => { setTagihanStr(t); setError(''); }}
+                      onChangeText={(t) => { setTagihanStr(formatRupiahInput(t)); setError(''); }}
                       keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
                     />
                   </View>
                 </View>
@@ -298,8 +311,10 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
                     <TextInput
                       style={[styles.smallInput, { backgroundColor: isDark ? '#242426' : colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                       value={belanjaStr}
-                      onChangeText={(t) => { setBelanjaStr(t); setError(''); }}
+                      onChangeText={(t) => { setBelanjaStr(formatRupiahInput(t)); setError(''); }}
                       keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
                     />
                   </View>
                 </View>
@@ -412,6 +427,26 @@ const styles = StyleSheet.create({
     fontFamily: FONT.regular,
     fontSize: 15,
     marginBottom: 12,
+  },
+  currencyInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+    marginBottom: 12,
+  },
+  currencyPrefix: {
+    fontFamily: FONT.bold,
+    fontSize: 15,
+    marginRight: 8,
+  },
+  currencyInput: {
+    flex: 1,
+    fontFamily: FONT.bold,
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   previewCard: {
     borderRadius: 14,

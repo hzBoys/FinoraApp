@@ -5,7 +5,7 @@ export type User = {
   created_at: string;
 };
 
-export type AccountType = 'bank' | 'ewallet' | 'investasi' | 'tunai';
+export type AccountType = 'bank' | 'ewallet' | 'investasi';
 
 export type Account = {
   account_id: number | string;

@@ -12,7 +12,7 @@ Finora adalah aplikasi asisten manajemen keuangan pribadi mandiri berbasis mobil
   - Layar konfirmasi interaktif sebelum mutasi memotong saldo akun.
 
 - **Auto-Portfolio**
-  - Konsolidasi saldo terpadu dari 4 pilar aset keuangan: **Bank**, **E-Wallet**, **Investasi**, dan **Tunai**.
+  - Konsolidasi saldo terpadu dari 3 pilar aset keuangan: **Bank**, **E-Wallet**, dan **Investasi**.
   - Kalkulasi saldo portofolio dan arus kas (masuk vs keluar) secara otomatis dan *real-time*.
 
 - **Smart Advisor & Anggaran**

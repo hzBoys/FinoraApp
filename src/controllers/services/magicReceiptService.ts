@@ -65,7 +65,7 @@ export function extractMockReceipt(mockText?: string): OCRReceiptResult {
     tanggal: getDeviceNow().displayDate,
     nominal: 75000,
     merchant,
-    metode_bayar: 'Tunai',
+    metode_bayar: 'Bank',
     kategori,
   };
 }

@@ -19,6 +19,7 @@ import { OCRReceiptResult } from '../../../controllers/services/magicReceiptServ
 import { MagicReceiptStep } from '../../../controllers/useMagicReceipt';
 import { CategoryIconBadge } from '../icons/CategoryIconBadge';
 import { getDeviceNow } from '../../../utils/date';
+import { formatRupiahInput, parseRupiahInput } from '../../../utils/currency';
 import { Ionicons } from '@expo/vector-icons';
 
 const EXPENSE_CATEGORIES = ['Makan', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan'];
@@ -67,7 +68,6 @@ export const MagicReceiptModal: React.FC<MagicReceiptModalProps> = ({
     { account_id: 1, nama_akun: 'Bank', tipe: 'bank' as const, saldo: 0, user_id: 1, updated_at: '' },
     { account_id: 2, nama_akun: 'E-Wallet', tipe: 'ewallet' as const, saldo: 0, user_id: 1, updated_at: '' },
     { account_id: 3, nama_akun: 'Investasi', tipe: 'investasi' as const, saldo: 0, user_id: 1, updated_at: '' },
-    { account_id: 4, nama_akun: 'Tunai', tipe: 'tunai' as const, saldo: 0, user_id: 1, updated_at: '' },
   ];
 
   const [selectedAccountId, setSelectedAccountId] = useState<number | string>(
@@ -77,14 +77,14 @@ export const MagicReceiptModal: React.FC<MagicReceiptModalProps> = ({
   useEffect(() => {
     if (extractedData) {
       setMerchant(extractedData.merchant);
-      setNominalStr(extractedData.nominal.toString());
+      setNominalStr(formatRupiahInput(extractedData.nominal));
       setKategori(extractedData.kategori);
       setTanggal(extractedData.tanggal);
     }
   }, [extractedData]);
 
   const handleSave = () => {
-    const num = Number(nominalStr.replace(/[^0-9]/g, ''));
+    const num = parseRupiahInput(nominalStr);
     const acc = accountList.find((a) => a.account_id === selectedAccountId);
     onConfirm(
       merchant.trim() || 'Struk Belanja',
@@ -257,19 +257,25 @@ export const MagicReceiptModal: React.FC<MagicReceiptModalProps> = ({
               />
 
               <Text style={[styles.label, { color: colors.textSecondary }]}>Nominal Ekstraksi (Rp) *</Text>
-              <TextInput
+              <View
                 style={[
-                  styles.input,
+                  styles.currencyInputWrap,
                   {
                     backgroundColor: colors.isDark ? '#242426' : colors.surface,
                     borderColor: colors.border,
-                    color: colors.textPrimary,
                   },
                 ]}
-                value={nominalStr}
-                onChangeText={setNominalStr}
-                keyboardType="number-pad"
-              />
+              >
+                <Text style={[styles.currencyPrefix, { color: colors.textSecondary }]}>Rp</Text>
+                <TextInput
+                  style={[styles.currencyInput, { color: colors.textPrimary }]}
+                  value={nominalStr}
+                  onChangeText={(t) => setNominalStr(formatRupiahInput(t))}
+                  keyboardType="number-pad"
+                  placeholder="0"
+                  placeholderTextColor={colors.textMuted}
+                />
+              </View>
 
               <Text style={[styles.label, { color: colors.textSecondary }]}>Kategori (Auto-Categorization AI)</Text>
               <View style={styles.catGrid}>
@@ -568,6 +574,25 @@ const styles = StyleSheet.create({
     paddingHorizontal: 14,
     fontFamily: FONT.regular,
     fontSize: 14,
+  },
+  currencyInputWrap: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    height: 48,
+    borderWidth: 1,
+    borderRadius: 12,
+    paddingHorizontal: 14,
+  },
+  currencyPrefix: {
+    fontFamily: FONT.bold,
+    fontSize: 15,
+    marginRight: 8,
+  },
+  currencyInput: {
+    flex: 1,
+    fontFamily: FONT.bold,
+    fontSize: 16,
+    letterSpacing: 0.5,
   },
   catGrid: {
     flexDirection: 'row',
