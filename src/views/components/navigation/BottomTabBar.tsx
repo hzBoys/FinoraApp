@@ -1,5 +1,6 @@
 import React from 'react';
 import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeContext } from '../../../context/ThemeContext';
 import { LAYOUT } from '../../../constants/theme';
 import { FONT } from '../../../constants/typography';
@@ -49,9 +50,11 @@ type BottomTabBarProps = {
 export const BottomTabBar: React.FC<BottomTabBarProps> = ({
   activeTab,
   onSelectTab,
-  bottomSafeInset = LAYOUT.bottomSafeHeight,
+  bottomSafeInset,
 }) => {
   const { colors, isDark } = useThemeContext();
+  const insets = useSafeAreaInsets();
+  const effectiveBottomInset = bottomSafeInset !== undefined ? bottomSafeInset : insets.bottom;
 
   return (
     <View
@@ -60,8 +63,8 @@ export const BottomTabBar: React.FC<BottomTabBarProps> = ({
         {
           backgroundColor: colors.card,
           borderTopColor: colors.border,
-          paddingBottom: bottomSafeInset,
-          height: LAYOUT.tabHeight + bottomSafeInset,
+          paddingBottom: effectiveBottomInset,
+          height: LAYOUT.tabHeight + effectiveBottomInset,
         },
       ]}
     >

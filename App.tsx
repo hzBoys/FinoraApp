@@ -10,6 +10,7 @@ import {
   useWindowDimensions,
   View,
 } from 'react-native';
+import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
 import {
   useFonts,
   PlusJakartaSans_400Regular,
@@ -50,6 +51,7 @@ import { ProfileScreen } from './src/views/screens/ProfileScreen';
 function MainApp() {
   const { colors, isDark, themeMode, setThemeMode } = useThemeContext();
   const { isLoggedIn, currentUser, updateCurrentUser, isLoadingAuth } = useAuthContext();
+  const insets = useSafeAreaInsets();
 
   // Screen & Auth Navigation States (default to 'login')
   const [authScreen, setAuthScreen] = useState<'login' | 'register'>('login');
@@ -239,6 +241,7 @@ function MainApp() {
         <ForgotPasswordModal
           visible={isForgotPasswordOpen}
           onClose={() => setIsForgotPasswordOpen(false)}
+          bottomSafeInset={insets.bottom}
         />
       </View>
     );
@@ -282,6 +285,7 @@ function MainApp() {
             recentTransactions={recentTransactions}
             onOpenAddModal={() => setIsAddModalOpen(true)}
             onScanReceipt={() => magicReceipt.setIsOpen(true)}
+            bottomSafeInset={insets.bottom}
           />
         </View>
 
@@ -294,6 +298,7 @@ function MainApp() {
             onSelectCat={setActiveCat}
             totalIn={filteredIn}
             totalOut={filteredOut}
+            bottomSafeInset={insets.bottom}
           />
         </View>
 
@@ -308,6 +313,7 @@ function MainApp() {
             categorySpendings={categorySpendings}
             nearLimitCategories={nearLimitCategories}
             onOpenSetBudget={() => setIsSetBudgetOpen(true)}
+            bottomSafeInset={insets.bottom}
           />
         </View>
 
@@ -325,6 +331,7 @@ function MainApp() {
                 : 'Nonaktif'
             }
             totalBalance={totalBalance}
+            bottomSafeInset={insets.bottom}
           />
         </View>
       </ScrollView>
@@ -335,6 +342,7 @@ function MainApp() {
         onClose={() => setIsAddModalOpen(false)}
         onSave={handleTransactionAdded}
         accounts={accounts}
+        bottomSafeInset={insets.bottom}
       />
 
       {/* 2. Modal Pindai Struk (Kamera & Galeri Murni) */}
@@ -349,6 +357,7 @@ function MainApp() {
         onPickGallery={magicReceipt.handlePickGallery}
         onConfirm={magicReceipt.confirmAndSaveTransaction}
         accounts={accounts}
+        bottomSafeInset={insets.bottom}
       />
 
       {/* 3. Modal Edit Profil / Pengaturan Akun */}
@@ -358,6 +367,7 @@ function MainApp() {
         onClose={() => setIsEditProfileOpen(false)}
         onSave={updateCurrentUser}
         onPickAvatar={pickAvatar}
+        bottomSafeInset={insets.bottom}
       />
 
       {/* 4. Modal Pilihan Tema (Light / Dark / System) */}
@@ -366,6 +376,7 @@ function MainApp() {
         currentMode={themeMode}
         onSelectMode={setThemeMode}
         onClose={() => setIsThemeModalOpen(false)}
+        bottomSafeInset={insets.bottom}
       />
 
       {/* 5. Modal Atur Batas Anggaran (Smart Advisor / Manual) */}
@@ -374,6 +385,7 @@ function MainApp() {
         currentTotal={budget.total_anggaran}
         onSave={setBudgetLimit}
         onClose={() => setIsSetBudgetOpen(false)}
+        bottomSafeInset={insets.bottom}
       />
 
       {/* 6. Modal Pengaturan Notifikasi */}
@@ -382,12 +394,14 @@ function MainApp() {
         preferences={notifPrefs}
         onSave={handleSaveNotifPrefs}
         onClose={() => setIsNotifModalOpen(false)}
+        bottomSafeInset={insets.bottom}
       />
 
       {/* Bottom Navigation Tab Bar */}
       <BottomTabBar
         activeTab={activeTab}
         onSelectTab={handleSelectTab}
+        bottomSafeInset={insets.bottom}
       />
     </View>
   );
@@ -418,11 +432,13 @@ export default function App() {
   }
 
   return (
-    <ThemeProvider>
-      <AuthProvider>
-        <MainApp />
-      </AuthProvider>
-    </ThemeProvider>
+    <SafeAreaProvider>
+      <ThemeProvider>
+        <AuthProvider>
+          <MainApp />
+        </AuthProvider>
+      </ThemeProvider>
+    </SafeAreaProvider>
   );
 }
 

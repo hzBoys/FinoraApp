@@ -1,5 +1,6 @@
 import React from 'react';
 import { Image, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useThemeContext } from '../../../context/ThemeContext';
 import { LAYOUT } from '../../../constants/theme';
 import { FONT } from '../../../constants/typography';
@@ -16,12 +17,15 @@ export const AppHeader: React.FC<AppHeaderProps> = ({
   onPressProfile,
 }) => {
   const { colors } = useThemeContext();
+  const insets = useSafeAreaInsets();
+  const topInset = Math.max(insets.top, LAYOUT.statusBarHeight);
 
   return (
     <View
       style={[
         styles.header,
         {
+          paddingTop: topInset + 8,
           backgroundColor: colors.surface,
           borderBottomColor: colors.border,
         },
