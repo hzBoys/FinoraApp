@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Account, AccountType } from '../models/types';
 import { validateReceiptFile } from './services/magicReceiptService';
 import { isGeminiConfigured } from '../services/ai/geminiClient';
@@ -187,13 +188,6 @@ export function useAutoPortfolioScan(
   };
 
   const handlePickGallery = async () => {
-    let ImagePicker: any = null;
-    try {
-      ImagePicker = require('expo-image-picker');
-    } catch {
-      ImagePicker = null;
-    }
-
     if (ImagePicker && ImagePicker.launchImageLibraryAsync) {
       try {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -225,13 +219,6 @@ export function useAutoPortfolioScan(
   };
 
   const handleLaunchCamera = async () => {
-    let ImagePicker: any = null;
-    try {
-      ImagePicker = require('expo-image-picker');
-    } catch {
-      ImagePicker = null;
-    }
-
     if (ImagePicker && ImagePicker.launchCameraAsync) {
       try {
         const permission = await ImagePicker.requestCameraPermissionsAsync();

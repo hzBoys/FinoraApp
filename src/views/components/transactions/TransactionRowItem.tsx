@@ -1,5 +1,5 @@
 import React from 'react';
-import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { Alert, Platform, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemeContext } from '../../../context/ThemeContext';
 import { FONT } from '../../../constants/typography';
 import { Tx } from '../../../models/types';
@@ -20,18 +20,21 @@ export const TransactionRowItem: React.FC<TransactionRowItemProps> = ({
 
   const handleLongPress = () => {
     if (!onDelete) return;
-    Alert.alert(
-      'Hapus Transaksi',
-      `Hapus "${tx.name}" sebesar Rp${tx.amount.toLocaleString('id-ID')} dan kembalikan mutasi ke saldo akun?`,
-      [
-        { text: 'Batal', style: 'cancel' },
-        {
-          text: 'Hapus',
-          style: 'destructive',
-          onPress: () => onDelete(tx),
-        },
-      ]
-    );
+    const msg = `Hapus "${tx.name}" sebesar Rp${tx.amount.toLocaleString('id-ID')} dan kembalikan mutasi ke saldo akun?`;
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      if (window.confirm(msg)) {
+        onDelete(tx);
+      }
+      return;
+    }
+    Alert.alert('Hapus Transaksi', msg, [
+      { text: 'Batal', style: 'cancel' },
+      {
+        text: 'Hapus',
+        style: 'destructive',
+        onPress: () => onDelete(tx),
+      },
+    ]);
   };
 
   const rowContent = (

@@ -1,5 +1,4 @@
 const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
-const GEMINI_API_REVISION = '2026-05-20';
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
 export type GeminiInputPart =
@@ -118,12 +117,14 @@ export async function executeGeminiJsonInteraction<T = any>(
 
   for (const keyIdx of keyOrder) {
     const apiKey = keys[keyIdx];
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 45_000);
     try {
       const response = await fetch(GEMINI_INTERACTIONS_URL, {
         method: 'POST',
+        signal: controller.signal,
         headers: {
           'Content-Type': 'application/json',
-          'Api-Revision': GEMINI_API_REVISION,
           'x-goog-api-key': apiKey,
         },
         body: JSON.stringify({
@@ -174,11 +175,15 @@ export async function executeGeminiJsonInteraction<T = any>(
         modelUsed: model,
       };
     } catch (err: any) {
-      const msg = err?.message || String(err);
+      const msg = err?.name === 'AbortError'
+        ? `Koneksi API Key #${keyIdx + 1} melebihi batas waktu, mencoba key berikutnya...`
+        : err?.message || String(err);
       if (msg.includes('Permintaan AI ditolak')) {
         throw err;
       }
       lastErrorMessage = msg;
+    } finally {
+      clearTimeout(timeoutId);
     }
   }
 

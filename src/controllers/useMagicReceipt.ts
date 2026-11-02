@@ -1,5 +1,6 @@
 import { useRef, useState } from 'react';
 import { Alert } from 'react-native';
+import * as ImagePicker from 'expo-image-picker';
 import { Tx } from '../models/types';
 import {
   extractMockReceipt,
@@ -171,13 +172,6 @@ export function useMagicReceipt(
   };
 
   const handlePickGallery = async () => {
-    let ImagePicker: any = null;
-    try {
-      ImagePicker = require('expo-image-picker');
-    } catch {
-      ImagePicker = null;
-    }
-
     if (ImagePicker && ImagePicker.launchImageLibraryAsync) {
       try {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -209,13 +203,6 @@ export function useMagicReceipt(
   };
 
   const handleLaunchCamera = async () => {
-    let ImagePicker: any = null;
-    try {
-      ImagePicker = require('expo-image-picker');
-    } catch {
-      ImagePicker = null;
-    }
-
     if (ImagePicker && ImagePicker.launchCameraAsync) {
       try {
         const permission = await ImagePicker.requestCameraPermissionsAsync();
