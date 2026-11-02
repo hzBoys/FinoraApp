@@ -1,4 +1,5 @@
 // Supabase Edge Function: ai-extract-document (SD-AI-01 OrkestratorAI)
+// Supports both Magic Receipt (`jenis_scan = 'struk'`) and Auto-Portfolio (`jenis_scan = 'saldo'`)
 // Runtime: Deno (Supabase Edge Functions)
 // Secrets required on Supabase Dashboard: GEMINI_API_KEYS, GEMINI_MODEL
 
@@ -39,6 +40,18 @@ const RECEIPT_SCHEMA = {
   ],
 };
 
+const BALANCE_SCHEMA = {
+  type: 'object',
+  properties: {
+    is_valid_balance: { type: 'boolean' },
+    nama_akun: { type: 'string' },
+    tipe: { type: 'string', enum: ['bank', 'ewallet', 'investasi'] },
+    saldo: { type: 'integer' },
+    ringkasan_ocr: { type: 'string' },
+  },
+  required: ['is_valid_balance', 'nama_akun', 'tipe', 'saldo', 'ringkasan_ocr'],
+};
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -53,7 +66,7 @@ Deno.serve(async (req: Request) => {
       });
     }
 
-    const { image_base64, mime_type = 'image/jpeg' } = await req.json();
+    const { image_base64, mime_type = 'image/jpeg', jenis_scan = 'struk' } = await req.json();
     if (!image_base64 || typeof image_base64 !== 'string') {
       return new Response(JSON.stringify({ error: 'image_base64 is required' }), {
         status: 400,
@@ -72,6 +85,11 @@ Deno.serve(async (req: Request) => {
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+
+    const isBalanceScan = jenis_scan === 'saldo';
+    const promptText = isBalanceScan
+      ? 'Ekstrak data screenshot saldo m-Banking/E-Wallet/Investasi Indonesia berikut ke JSON (is_valid_balance, nama_akun misal BCA/GoPay/Bibit, tipe bank/ewallet/investasi, saldo Rupiah bulat, ringkasan_ocr).'
+      : 'Ekstrak data struk/bukti pembayaran Indonesia berikut ke JSON (is_valid_receipt, merchant, nominal Rupiah bulat, tanggal YYYY-MM-DD, metode_bayar Bank/E-Wallet/Investasi, kategori Makan/Transportasi/Belanja/Tagihan/Hiburan, ringkasan_ocr).';
 
     const model = Deno.env.get('GEMINI_MODEL') || 'gemini-3.5-flash-lite';
     const startIdx = edgeRoundRobinCursor % keys.length;
@@ -96,7 +114,7 @@ Deno.serve(async (req: Request) => {
           input: [
             {
               type: 'text',
-              text: 'Ekstrak data struk/bukti pembayaran Indonesia berikut ke JSON (merchant, nominal Rupiah bulat, tanggal YYYY-MM-DD, metode_bayar Bank/E-Wallet/Investasi, kategori Makan/Transportasi/Belanja/Tagihan/Hiburan, ringkasan_ocr).',
+              text: promptText,
             },
             {
               type: 'image',
@@ -111,7 +129,7 @@ Deno.serve(async (req: Request) => {
           response_format: {
             type: 'text',
             mime_type: 'application/json',
-            schema: RECEIPT_SCHEMA,
+            schema: isBalanceScan ? BALANCE_SCHEMA : RECEIPT_SCHEMA,
           },
         }),
       });
@@ -137,6 +155,7 @@ Deno.serve(async (req: Request) => {
 
       return new Response(
         JSON.stringify({
+          jenis_scan: isBalanceScan ? 'saldo' : 'struk',
           result: JSON.parse(text),
           processing_time_ms: Date.now() - startedAt,
           key_index_used: idx + 1,

@@ -29,12 +29,14 @@ export function upsertAccountBalance(
   );
 
   const now = new Date().toISOString().split('T')[0];
+  const safeBalance = Math.max(0, Math.round(nominalSaldo));
 
   if (existingIndex >= 0) {
     const updated = [...accounts];
     updated[existingIndex] = {
       ...updated[existingIndex],
-      saldo: nominalSaldo,
+      tipe,
+      saldo: safeBalance,
       updated_at: now,
     };
     return updated;
@@ -49,7 +51,7 @@ export function upsertAccountBalance(
     user_id: 1,
     nama_akun: namaAkun.trim(),
     tipe,
-    saldo: nominalSaldo,
+    saldo: safeBalance,
     updated_at: now,
   };
 

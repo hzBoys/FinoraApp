@@ -102,7 +102,8 @@ export const storageService = {
   async uploadReceiptImage(
     userId: string,
     base64Data: string,
-    mimeType: string = 'image/jpeg'
+    mimeType: string = 'image/jpeg',
+    prefix: 'struk' | 'saldo' = 'struk'
   ): Promise<string | null> {
     if (!isSupabaseConfigured || !userId || !userId.includes('-')) {
       return null;
@@ -112,7 +113,7 @@ export const storageService = {
       const normalizedMime = normalizeImageMimeType(mimeType);
       const ext = normalizedMime === 'image/png' ? 'png' : 'jpg';
       const rand = Math.random().toString(36).slice(2, 8);
-      const filePath = `${userId}/struk_${Date.now()}_${rand}.${ext}`;
+      const filePath = `${userId}/${prefix}_${Date.now()}_${rand}.${ext}`;
       const arrayBuffer = decodeBase64ToArrayBuffer(base64Data);
 
       const { error } = await supabase.storage.from('receipts').upload(filePath, arrayBuffer, {

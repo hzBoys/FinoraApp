@@ -27,6 +27,7 @@ type TransactionsScreenProps = {
   onSelectCat: (c: string) => void;
   totalIn: number;
   totalOut: number;
+  onDeleteTransaction?: (tx: Tx) => void;
   bottomSafeInset?: number;
 };
 
@@ -38,6 +39,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   onSelectCat,
   totalIn: _totalIn,
   totalOut: _totalOut,
+  onDeleteTransaction,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
   const { colors } = useThemeContext();
@@ -256,6 +258,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 key={tx.id}
                 tx={tx}
                 isLast={i === dateFilteredTransactions.length - 1}
+                onDelete={onDeleteTransaction}
               />
             ))}
           </View>

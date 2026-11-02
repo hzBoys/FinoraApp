@@ -106,6 +106,23 @@ const APPLE_ICON_MAP: Record<string, IconConfig> = {
   },
 };
 
+function resolveAccountIconConfig(label: string): IconConfig {
+  const lower = (label || '').toLowerCase();
+  if (/gopay|ovo|dana|shopeepay|linkaja|isaku|doku|wallet|ewallet/i.test(lower)) {
+    return APPLE_ICON_MAP['E-Wallet'];
+  }
+  if (/bibit|bareksa|ajaib|stockbit|pluang|reksadana|saham|invest/i.test(lower)) {
+    return APPLE_ICON_MAP.Investasi;
+  }
+  if (/bca|mandiri|bri|bni|bsi|jago|seabank|permata|cimb|danamon|bank/i.test(lower)) {
+    return APPLE_ICON_MAP.Bank;
+  }
+  return {
+    name: 'pricetag',
+    color: '#34C759',
+  };
+}
+
 type CategoryIconBadgeProps = {
   categoryOrType: string;
   size?: number;
@@ -119,10 +136,7 @@ export const CategoryIconBadge: React.FC<CategoryIconBadgeProps> = ({
   iconSize,
   borderRadius,
 }) => {
-  const config = APPLE_ICON_MAP[categoryOrType] ?? {
-    name: 'pricetag',
-    color: '#34C759',
-  };
+  const config = APPLE_ICON_MAP[categoryOrType] ?? resolveAccountIconConfig(categoryOrType);
 
   // Apple iOS squircle ratio is ~22-24% of size
   const calculatedRadius = borderRadius ?? Math.round(size * 0.24);

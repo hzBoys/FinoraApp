@@ -4,6 +4,7 @@ import { useThemeContext } from '../../context/ThemeContext';
 import { LAYOUT } from '../../constants/theme';
 import { FONT } from '../../constants/typography';
 import { CategoryIconBadge } from '../components/icons/CategoryIconBadge';
+import { AdvisorCard } from '../components/cards/AdvisorCard';
 import { formatPeriodKeyToLabel, getCurrentPeriodLabel } from '../../utils/date';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -24,6 +25,10 @@ type BudgetScreenProps = {
   unallocated: number;
   categorySpendings: BudgetCategoryItem[];
   nearLimitCategories: BudgetCategoryItem[];
+  advisorRecommendation?: string;
+  isAiRecommendation?: boolean;
+  isGeneratingAdvice?: boolean;
+  onRefreshAdvisor?: () => void;
   onOpenSetBudget?: () => void;
   bottomSafeInset?: number;
 };
@@ -37,6 +42,10 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({
   unallocated,
   categorySpendings,
   nearLimitCategories,
+  advisorRecommendation,
+  isAiRecommendation = false,
+  isGeneratingAdvice = false,
+  onRefreshAdvisor,
   onOpenSetBudget,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
@@ -191,6 +200,19 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({
           ))
         )}
       </View>
+
+      {/* Smart Advisor AI */}
+      {advisorRecommendation && (
+        <>
+          <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Smart Advisor AI</Text>
+          <AdvisorCard
+            body={advisorRecommendation}
+            isAiGenerated={isAiRecommendation}
+            isRefreshingAi={isGeneratingAdvice}
+            onRefreshAi={onRefreshAdvisor}
+          />
+        </>
+      )}
     </ScrollView>
   );
 };

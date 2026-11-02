@@ -34,12 +34,36 @@ export function usePortfolio(userId?: string | number) {
   const totalBalance = useMemo(() => calculateTotalPortfolio(accounts), [accounts]);
   const pillars = useMemo(() => calculatePillars(accounts), [accounts]);
 
-  const updateBalance = (namaAkun: string, tipe: AccountType, nominalSaldo: number) => {
-    setAccounts((prev) => upsertAccountBalance(prev, namaAkun, tipe, nominalSaldo));
+  const updateBalance = async (
+    namaAkun: string,
+    tipe: AccountType,
+    nominalSaldo: number
+  ): Promise<Account | null> => {
+    const cleanInputName = namaAkun.trim();
+    if (!cleanInputName) return null;
+
+    // Preserve canonical casing if an account with the same case-insensitive name already exists
+    const existingMatch = accounts.find(
+      (a) => a.nama_akun.trim().toLowerCase() === cleanInputName.toLowerCase()
+    );
+    const canonicalName = existingMatch ? existingMatch.nama_akun : cleanInputName;
+    const safeSaldo = Math.max(0, Math.round(nominalSaldo));
+
+    setAccounts((prev) => upsertAccountBalance(prev, canonicalName, tipe, safeSaldo));
 
     if (userId && typeof userId === 'string' && userId.includes('-')) {
-      accountService.upsertAccount(userId, namaAkun, tipe, nominalSaldo);
+      const remoteAcc = await accountService.upsertAccount(userId, canonicalName, tipe, safeSaldo);
+      if (remoteAcc) {
+        setAccounts((prev) =>
+          prev.map((a) =>
+            a.nama_akun.trim().toLowerCase() === canonicalName.toLowerCase() ? remoteAcc : a
+          )
+        );
+        return remoteAcc;
+      }
     }
+
+    return null;
   };
 
   const syncAccountBalanceLocal = (accountId: number | string, exactBalance: number) => {

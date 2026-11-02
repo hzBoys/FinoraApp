@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemeContext } from '../../../context/ThemeContext';
 import { FONT } from '../../../constants/typography';
 import { AccountType } from '../../../models/types';
@@ -8,11 +8,15 @@ import { Ionicons } from '@expo/vector-icons';
 type BalanceHeroCardProps = {
   totalBalance: number;
   pillars: Record<AccountType, number>;
+  accountCount?: number;
+  onPressManagePortfolio?: () => void;
 };
 
 export const BalanceHeroCard: React.FC<BalanceHeroCardProps> = ({
   totalBalance,
   pillars,
+  accountCount,
+  onPressManagePortfolio,
 }) => {
   const { colors } = useThemeContext();
 
@@ -32,7 +36,32 @@ export const BalanceHeroCard: React.FC<BalanceHeroCardProps> = ({
       <View style={styles.deco2} />
 
       <View style={styles.balanceCardInner}>
-        <Text style={[styles.balanceLabel, { color: colors.textOnDarkDim }]}>Total Saldo Portofolio</Text>
+        <View style={styles.topHeaderRow}>
+          <View>
+            <Text style={[styles.balanceLabel, { color: colors.textOnDarkDim }]}>
+              Total Saldo Portofolio
+            </Text>
+            {typeof accountCount === 'number' && accountCount > 0 && (
+              <Text style={[styles.accountSubCount, { color: colors.textOnDarkDim }]}>
+                {accountCount} Akun Terintegrasi
+              </Text>
+            )}
+          </View>
+
+          {onPressManagePortfolio && (
+            <TouchableOpacity
+              style={styles.managePillBtn}
+              onPress={onPressManagePortfolio}
+              activeOpacity={0.8}
+            >
+              <Ionicons name="scan-outline" size={13} color={colors.textOnDark} />
+              <Text style={[styles.managePillText, { color: colors.textOnDark }]}>
+                Scan / Kelola
+              </Text>
+            </TouchableOpacity>
+          )}
+        </View>
+
         <Text style={[styles.balanceAmount, { color: colors.textOnDark }]}>
           Rp{totalBalance.toLocaleString('id-ID')}
         </Text>
@@ -102,13 +131,40 @@ const styles = StyleSheet.create({
   balanceCardInner: {
     padding: 20,
   },
+  topHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 6,
+  },
   balanceLabel: {
     fontFamily: FONT.semiBold,
     fontSize: 11,
     fontWeight: '600',
     letterSpacing: 0.5,
     textTransform: 'uppercase',
-    marginBottom: 6,
+  },
+  accountSubCount: {
+    fontFamily: FONT.regular,
+    fontSize: 10,
+    opacity: 0.78,
+    marginTop: 1,
+  },
+  managePillBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 5,
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 14,
+    backgroundColor: 'rgba(255, 255, 255, 0.14)',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  managePillText: {
+    fontFamily: FONT.semiBold,
+    fontSize: 11,
+    fontWeight: '600',
   },
   balanceAmount: {
     fontFamily: FONT.bold,

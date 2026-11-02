@@ -1,5 +1,5 @@
 import React from 'react';
-import { StyleSheet, Text, View } from 'react-native';
+import { Alert, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemeContext } from '../../../context/ThemeContext';
 import { FONT } from '../../../constants/typography';
 import { Tx } from '../../../models/types';
@@ -8,12 +8,33 @@ import { CategoryIconBadge } from '../icons/CategoryIconBadge';
 type TransactionRowItemProps = {
   tx: Tx;
   isLast?: boolean;
+  onDelete?: (tx: Tx) => void;
 };
 
-export const TransactionRowItem: React.FC<TransactionRowItemProps> = ({ tx, isLast = false }) => {
+export const TransactionRowItem: React.FC<TransactionRowItemProps> = ({
+  tx,
+  isLast = false,
+  onDelete,
+}) => {
   const { colors } = useThemeContext();
 
-  return (
+  const handleLongPress = () => {
+    if (!onDelete) return;
+    Alert.alert(
+      'Hapus Transaksi',
+      `Hapus "${tx.name}" sebesar Rp${tx.amount.toLocaleString('id-ID')} dan kembalikan mutasi ke saldo akun?`,
+      [
+        { text: 'Batal', style: 'cancel' },
+        {
+          text: 'Hapus',
+          style: 'destructive',
+          onPress: () => onDelete(tx),
+        },
+      ]
+    );
+  };
+
+  const rowContent = (
     <View style={[styles.txRow, !isLast && [styles.txBorder, { borderBottomColor: colors.border }]]}>
       <CategoryIconBadge
         categoryOrType={tx.income ? 'Pemasukan' : tx.cat}
@@ -36,6 +57,16 @@ export const TransactionRowItem: React.FC<TransactionRowItemProps> = ({ tx, isLa
         {tx.income ? '+' : '-'}Rp{tx.amount.toLocaleString('id-ID')}
       </Text>
     </View>
+  );
+
+  if (!onDelete) {
+    return rowContent;
+  }
+
+  return (
+    <TouchableOpacity onLongPress={handleLongPress} delayLongPress={380} activeOpacity={0.8}>
+      {rowContent}
+    </TouchableOpacity>
   );
 };
 

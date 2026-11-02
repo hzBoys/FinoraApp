@@ -58,27 +58,39 @@ export const accountService = {
     namaAkun: string,
     tipe: AccountType,
     saldo: number
-  ): Promise<boolean> {
+  ): Promise<Account | null> {
     try {
-      const { error } = await supabase.from('accounts').upsert(
-        {
-          user_id: userId,
-          nama_akun: namaAkun,
-          tipe,
-          saldo,
-          updated_at: new Date().toISOString(),
-        },
-        { onConflict: 'user_id,nama_akun' }
-      );
+      const { data, error } = await supabase
+        .from('accounts')
+        .upsert(
+          {
+            user_id: userId,
+            nama_akun: namaAkun.trim(),
+            tipe,
+            saldo: Math.max(0, Math.round(saldo)),
+            updated_at: new Date().toISOString(),
+          },
+          { onConflict: 'user_id,nama_akun' }
+        )
+        .select('*')
+        .single();
 
-      if (error) {
-        console.warn('accountService.upsertAccount warning:', error.message);
-        return false;
+      if (error || !data) {
+        console.warn('accountService.upsertAccount warning:', error?.message);
+        return null;
       }
-      return true;
+
+      return {
+        account_id: data.id,
+        user_id: data.user_id,
+        nama_akun: data.nama_akun,
+        tipe: data.tipe as AccountType,
+        saldo: Number(data.saldo),
+        updated_at: data.updated_at ? data.updated_at.split('T')[0] : new Date().toISOString().split('T')[0],
+      };
     } catch (err) {
       console.warn('accountService.upsertAccount exception:', err);
-      return false;
+      return null;
     }
   },
 };

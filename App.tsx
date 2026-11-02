@@ -26,6 +26,7 @@ import { useTransactions } from './src/controllers/useTransactions';
 import { usePortfolio } from './src/controllers/usePortfolio';
 import { useBudget } from './src/controllers/useBudget';
 import { useMagicReceipt } from './src/controllers/useMagicReceipt';
+import { useAutoPortfolioScan } from './src/controllers/useAutoPortfolioScan';
 import { accountService } from './src/services/db/accountService';
 import { resolveImagePayload, storageService } from './src/services/db/storageService';
 import {
@@ -37,6 +38,7 @@ import { AppHeader } from './src/views/components/navigation/AppHeader';
 import { BottomTabBar, TABS } from './src/views/components/navigation/BottomTabBar';
 import { AddTransactionModal } from './src/views/components/transactions/AddTransactionModal';
 import { MagicReceiptModal } from './src/views/components/modals/MagicReceiptModal';
+import { AutoPortfolioModal } from './src/views/components/modals/AutoPortfolioModal';
 import { EditProfileModal } from './src/views/components/modals/EditProfileModal';
 import { ThemeModal } from './src/views/components/modals/ThemeModal';
 import { ForgotPasswordModal } from './src/views/components/modals/ForgotPasswordModal';
@@ -133,12 +135,14 @@ function MainApp() {
     filteredOut,
     recentTransactions,
     addTransaction,
+    removeTransaction,
   } = useTransactions(currentUser.id);
 
   const {
     accounts,
     totalBalance,
     pillars,
+    updateBalance,
     syncAccountBalanceLocal,
     deductAccountBalance,
   } = usePortfolio(currentUser.id);
@@ -171,7 +175,19 @@ function MainApp() {
     return res.transactionId;
   };
 
+  const handleTransactionDeleted = async (tx: Tx) => {
+    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+    if (tx.account_id !== undefined) {
+      deductAccountBalance(tx.account_id, tx.amount, !tx.income, isRemoteUser);
+    }
+    const res = await removeTransaction(tx.id);
+    if (isRemoteUser && res.accountId && res.newBalance !== null) {
+      syncAccountBalanceLocal(res.accountId, res.newBalance);
+    }
+  };
+
   const magicReceipt = useMagicReceipt(handleTransactionAdded, currentUser.id);
+  const autoPortfolio = useAutoPortfolioScan(updateBalance, currentUser.id);
 
   const {
     budget,
@@ -182,8 +198,11 @@ function MainApp() {
     totalRemaining,
     unallocated,
     nearLimitCategories,
-    advisorAnalysis,
+    advisorRecommendationText,
+    isAiRecommendation,
+    isGeneratingAdvice,
     setBudgetLimit,
+    refreshAiAdvisor,
   } = useBudget(transactions, currentUser.id);
 
   // Avatar Picker
@@ -325,6 +344,7 @@ function MainApp() {
           <HomeScreen
             totalBalance={totalBalance}
             pillars={pillars}
+            accountCount={accounts.length}
             totalIn={totalIn}
             totalOut={totalConsumptionOut}
             totalBudget={budget.total_anggaran}
@@ -332,10 +352,15 @@ function MainApp() {
             totalPct={totalPct}
             totalRemaining={totalRemaining}
             categorySpendings={categorySpendings}
-            advisorRecommendation={advisorAnalysis.recommendationText}
+            advisorRecommendation={advisorRecommendationText}
+            isAiRecommendation={isAiRecommendation}
+            isGeneratingAdvice={isGeneratingAdvice}
+            onRefreshAdvisor={refreshAiAdvisor}
             recentTransactions={recentTransactions}
             onOpenAddModal={() => setIsAddModalOpen(true)}
             onScanReceipt={() => magicReceipt.setIsOpen(true)}
+            onOpenAutoPortfolio={() => autoPortfolio.openModal('scan')}
+            onDeleteTransaction={handleTransactionDeleted}
             bottomSafeInset={insets.bottom}
           />
         </View>
@@ -349,6 +374,7 @@ function MainApp() {
             onSelectCat={setActiveCat}
             totalIn={filteredIn}
             totalOut={filteredOut}
+            onDeleteTransaction={handleTransactionDeleted}
             bottomSafeInset={insets.bottom}
           />
         </View>
@@ -363,6 +389,10 @@ function MainApp() {
             unallocated={unallocated}
             categorySpendings={categorySpendings}
             nearLimitCategories={nearLimitCategories}
+            advisorRecommendation={advisorRecommendationText}
+            isAiRecommendation={isAiRecommendation}
+            isGeneratingAdvice={isGeneratingAdvice}
+            onRefreshAdvisor={refreshAiAdvisor}
             onOpenSetBudget={() => setIsSetBudgetOpen(true)}
             bottomSafeInset={insets.bottom}
           />
@@ -408,6 +438,23 @@ function MainApp() {
         onPickGallery={magicReceipt.handlePickGallery}
         onConfirm={magicReceipt.confirmAndSaveTransaction}
         accounts={accounts}
+        bottomSafeInset={insets.bottom}
+      />
+
+      {/* 2B. Modal Auto-Portfolio (Scan Screenshot Saldo AI & Kelola Multi-Akun) */}
+      <AutoPortfolioModal
+        visible={autoPortfolio.isOpen}
+        mode={autoPortfolio.mode}
+        onChangeMode={autoPortfolio.setMode}
+        step={autoPortfolio.step}
+        imageUri={autoPortfolio.balanceImageUri}
+        extractedData={autoPortfolio.extractedBalance}
+        progress={autoPortfolio.ocrProgress}
+        accounts={accounts}
+        onClose={autoPortfolio.reset}
+        onLaunchCamera={autoPortfolio.handleLaunchCamera}
+        onPickGallery={autoPortfolio.handlePickGallery}
+        onConfirmBalance={autoPortfolio.confirmAndSaveBalance}
         bottomSafeInset={insets.bottom}
       />
 

@@ -13,6 +13,7 @@ import { TransactionRowItem } from '../components/transactions/TransactionRowIte
 type HomeScreenProps = {
   totalBalance: number;
   pillars: Record<AccountType, number>;
+  accountCount?: number;
   totalIn: number;
   totalOut: number;
   totalBudget: number;
@@ -21,15 +22,21 @@ type HomeScreenProps = {
   totalRemaining: number;
   categorySpendings: { key: string; label: string; budget: number; used: number; pct: number }[];
   advisorRecommendation: string;
+  isAiRecommendation?: boolean;
+  isGeneratingAdvice?: boolean;
+  onRefreshAdvisor?: () => void;
   recentTransactions: Tx[];
   onOpenAddModal: () => void;
   onScanReceipt: () => void;
+  onOpenAutoPortfolio?: () => void;
+  onDeleteTransaction?: (tx: Tx) => void;
   bottomSafeInset?: number;
 };
 
 export const HomeScreen: React.FC<HomeScreenProps> = ({
   totalBalance,
   pillars,
+  accountCount,
   totalIn,
   totalOut,
   totalBudget,
@@ -38,9 +45,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   totalRemaining,
   categorySpendings,
   advisorRecommendation,
+  isAiRecommendation = false,
+  isGeneratingAdvice = false,
+  onRefreshAdvisor,
   recentTransactions,
   onOpenAddModal,
   onScanReceipt,
+  onOpenAutoPortfolio,
+  onDeleteTransaction,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
   const { colors } = useThemeContext();
@@ -57,7 +69,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       showsVerticalScrollIndicator={false}
     >
       {/* Hero Balance Card */}
-      <BalanceHeroCard totalBalance={totalBalance} pillars={pillars} />
+      <BalanceHeroCard
+        totalBalance={totalBalance}
+        pillars={pillars}
+        accountCount={accountCount}
+        onPressManagePortfolio={onOpenAutoPortfolio}
+      />
 
       {/* Quick Actions */}
       <View style={styles.actionsRow}>
@@ -107,7 +124,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
 
       {/* Smart Advisor */}
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Smart Advisor</Text>
-      <AdvisorCard body={advisorRecommendation} />
+      <AdvisorCard
+        body={advisorRecommendation}
+        isAiGenerated={isAiRecommendation}
+        isRefreshingAi={isGeneratingAdvice}
+        onRefreshAi={onRefreshAdvisor}
+      />
 
       {/* Transaksi Terbaru */}
       <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Transaksi Terbaru</Text>
@@ -120,7 +142,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           </View>
         ) : (
           recentTransactions.map((tx, i, arr) => (
-            <TransactionRowItem key={tx.id} tx={tx} isLast={i === arr.length - 1} />
+            <TransactionRowItem
+              key={tx.id}
+              tx={tx}
+              isLast={i === arr.length - 1}
+              onDelete={onDeleteTransaction}
+            />
           ))
         )}
       </View>

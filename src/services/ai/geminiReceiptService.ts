@@ -1,10 +1,14 @@
 import { autoCategorizeMerchant, OCRReceiptResult } from '../../controllers/services/magicReceiptService';
 import { formatToDisplay, getDeviceNow } from '../../utils/date';
 import { cleanBase64String, normalizeImageMimeType } from '../db/storageService';
+import {
+  executeGeminiJsonInteraction,
+  getConfiguredGeminiKeys,
+  getConfiguredGeminiModel,
+  isGeminiConfigured,
+} from './geminiClient';
 
-const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
-const GEMINI_API_REVISION = '2026-05-20';
-const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
+export { getConfiguredGeminiKeys, getConfiguredGeminiModel, isGeminiConfigured };
 
 const VALID_EXPENSE_CATEGORIES = ['Makan', 'Transportasi', 'Belanja', 'Tagihan', 'Hiburan'] as const;
 const VALID_PAYMENT_PILLARS = ['Bank', 'E-Wallet', 'Investasi'] as const;
@@ -67,88 +71,6 @@ const RECEIPT_EXTRACTION_SCHEMA = {
   ],
 };
 
-// Module-level Round-Robin pointer & per-key temporary rate-limit cooldown tracker
-let roundRobinCursor = 0;
-const keyCooldownUntilMs = new Map<number, number>();
-
-export function getConfiguredGeminiKeys(): string[] {
-  const raw =
-    process.env.EXPO_PUBLIC_GEMINI_API_KEYS ||
-    process.env.GEMINI_API_KEYS ||
-    process.env.EXPO_PUBLIC_GEMINI_API_KEY ||
-    process.env.GEMINI_API_KEY ||
-    '';
-
-  return String(raw)
-    .split(',')
-    .map((k: string) => k.trim().replace(/^['"]|['"]$/g, ''))
-    .filter((k: string) => k.length > 0);
-}
-
-export function getConfiguredGeminiModel(): string {
-  const raw =
-    process.env.EXPO_PUBLIC_GEMINI_MODEL ||
-    process.env.GEMINI_MODEL ||
-    DEFAULT_GEMINI_MODEL;
-  return raw.trim() || DEFAULT_GEMINI_MODEL;
-}
-
-export function isGeminiConfigured(): boolean {
-  return getConfiguredGeminiKeys().length > 0;
-}
-
-function buildRoundRobinKeyOrder(totalKeys: number): number[] {
-  if (totalKeys <= 0) return [];
-  const start = roundRobinCursor % totalKeys;
-  // Advance pointer immediately so the next request starts on the next key
-  roundRobinCursor = (start + 1) % totalKeys;
-
-  const now = Date.now();
-  const ready: number[] = [];
-  const coolingDown: number[] = [];
-
-  for (let offset = 0; offset < totalKeys; offset++) {
-    const idx = (start + offset) % totalKeys;
-    const blockedUntil = keyCooldownUntilMs.get(idx) ?? 0;
-    if (blockedUntil > now) {
-      coolingDown.push(idx);
-    } else {
-      ready.push(idx);
-    }
-  }
-
-  return [...ready, ...coolingDown];
-}
-
-function extractTextFromInteractionResponse(payload: any): string {
-  if (typeof payload?.output_text === 'string' && payload.output_text.trim().length > 0) {
-    return payload.output_text.trim();
-  }
-
-  if (Array.isArray(payload?.steps)) {
-    for (let i = payload.steps.length - 1; i >= 0; i--) {
-      const step = payload.steps[i];
-      if (step?.type === 'model_output' && Array.isArray(step.content)) {
-        const joined = step.content
-          .filter((part: any) => part?.type === 'text' && typeof part.text === 'string')
-          .map((part: any) => part.text)
-          .join('')
-          .trim();
-        if (joined.length > 0) {
-          return joined;
-        }
-      }
-    }
-  }
-
-  const fallbackCandidateText = payload?.candidates?.[0]?.content?.parts
-    ?.map((p: any) => (typeof p?.text === 'string' ? p.text : ''))
-    .join('')
-    .trim();
-
-  return fallbackCandidateText || '';
-}
-
 function normalizePaymentPillar(rawMethod?: string, rawSummary?: string): 'Bank' | 'E-Wallet' | 'Investasi' {
   const combined = `${rawMethod || ''} ${rawSummary || ''}`.toLowerCase();
   if (/qris|gopay|ovo|dana|shopeepay|linkaja|e-wallet|ewallet/i.test(combined)) {
@@ -178,132 +100,73 @@ export type GeminiReceiptExtractionOutput = OCRReceiptResult & {
   modelUsed: string;
 };
 
+type RawReceiptSchemaPayload = {
+  is_valid_receipt: boolean;
+  merchant: string;
+  nominal: number;
+  tanggal: string;
+  metode_bayar: string;
+  kategori: string;
+  ringkasan_ocr: string;
+};
+
 export async function extractReceiptWithGemini(
   base64Image: string,
   mimeType: string = 'image/jpeg'
 ): Promise<GeminiReceiptExtractionOutput> {
-  const keys = getConfiguredGeminiKeys();
-  if (keys.length === 0) {
-    throw new Error('API Key Gemini belum dikonfigurasi pada file .env (EXPO_PUBLIC_GEMINI_API_KEYS).');
-  }
-
-  const model = getConfiguredGeminiModel();
   const cleanBase64 = cleanBase64String(base64Image);
   const normalizedMime = normalizeImageMimeType(mimeType);
   const today = getDeviceNow();
-  const keyOrder = buildRoundRobinKeyOrder(keys.length);
 
-  const startedAt = Date.now();
-  let lastErrorMessage = 'Gagal terhubung ke layanan Gemini AI.';
+  const interaction = await executeGeminiJsonInteraction<RawReceiptSchemaPayload>({
+    systemInstruction: RECEIPT_SYSTEM_INSTRUCTION,
+    inputParts: [
+      {
+        type: 'text',
+        text: `Ekstrak data struk/bukti pembayaran ini ke JSON. Tanggal hari ini: ${today.isoDate}.`,
+      },
+      {
+        type: 'image',
+        data: cleanBase64,
+        mime_type: normalizedMime,
+      },
+    ],
+    schema: RECEIPT_EXTRACTION_SCHEMA,
+    temperature: 0.1,
+  });
 
-  for (const keyIdx of keyOrder) {
-    const apiKey = keys[keyIdx];
-    try {
-      const response = await fetch(GEMINI_INTERACTIONS_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Api-Revision': GEMINI_API_REVISION,
-          'x-goog-api-key': apiKey,
-        },
-        body: JSON.stringify({
-          model,
-          store: false,
-          system_instruction: RECEIPT_SYSTEM_INSTRUCTION,
-          input: [
-            {
-              type: 'text',
-              text: `Ekstrak data struk/bukti pembayaran ini ke JSON. Tanggal hari ini: ${today.isoDate}.`,
-            },
-            {
-              type: 'image',
-              data: cleanBase64,
-              mime_type: normalizedMime,
-            },
-          ],
-          generation_config: {
-            thinking_level: 'minimal',
-            temperature: 0.1,
-          },
-          response_format: {
-            type: 'text',
-            mime_type: 'application/json',
-            schema: RECEIPT_EXTRACTION_SCHEMA,
-          },
-        }),
-      });
+  const parsed = interaction.data;
 
-      if (!response.ok) {
-        const errBody = await response.text().catch(() => '');
-        // Rate limit or server overload -> cooldown this key and failover to next key in Round-Robin
-        if (response.status === 429 || response.status === 503 || response.status === 500) {
-          keyCooldownUntilMs.set(keyIdx, Date.now() + 60_000);
-          lastErrorMessage = `Kuota API Key #${keyIdx + 1} penuh (HTTP ${response.status}), mencoba key berikutnya...`;
-          continue;
-        }
-        if (response.status === 401 || response.status === 403) {
-          keyCooldownUntilMs.set(keyIdx, Date.now() + 300_000);
-          lastErrorMessage = `API Key #${keyIdx + 1} tidak diizinkan (HTTP ${response.status}).`;
-          continue;
-        }
-        throw new Error(`Permintaan OCR ditolak (HTTP ${response.status}): ${errBody.slice(0, 140)}`);
-      }
-
-      const rawJson = await response.json();
-      const jsonText = extractTextFromInteractionResponse(rawJson);
-      if (!jsonText) {
-        lastErrorMessage = 'Respons AI kosong, mencoba ulang...';
-        continue;
-      }
-
-      const parsed = JSON.parse(jsonText);
-      const processingTimeMs = Date.now() - startedAt;
-
-      if (parsed.is_valid_receipt === false && (!parsed.nominal || Number(parsed.nominal) <= 0)) {
-        throw new Error(
-          'Gambar tidak terdeteksi sebagai struk atau bukti pembayaran. Pastikan nominal pembayaran terlihat jelas.'
-        );
-      }
-
-      const cleanMerchant = String(parsed.merchant || '').trim() || 'Struk Belanja';
-      const rawNominal = Math.round(Math.abs(Number(parsed.nominal) || 0));
-      if (rawNominal <= 0) {
-        throw new Error(
-          'Nominal pada struk belum terbaca dengan jelas. Coba gunakan foto yang lebih terang dan fokus.'
-        );
-      }
-
-      const rawTanggal = String(parsed.tanggal || '').trim();
-      const displayTanggal = rawTanggal ? formatToDisplay(rawTanggal) : today.displayDate;
-      const ringkasanOcr = String(parsed.ringkasan_ocr || cleanMerchant).trim().slice(0, 500);
-      const metodeBayar = normalizePaymentPillar(parsed.metode_bayar, ringkasanOcr);
-      const kategori = normalizeCategory(parsed.kategori, cleanMerchant, ringkasanOcr);
-
-      return {
-        merchant: cleanMerchant,
-        nominal: rawNominal,
-        tanggal: displayTanggal,
-        metode_bayar: metodeBayar,
-        kategori,
-        ringkasan_ocr: ringkasanOcr,
-        processingTimeMs,
-        keyIndexUsed: keyIdx + 1,
-        totalKeysConfigured: keys.length,
-        modelUsed: model,
-      };
-    } catch (err: any) {
-      const msg = err?.message || String(err);
-      // Immediately surface user-facing validation errors (not network/quota failures)
-      if (
-        msg.includes('Gambar tidak terdeteksi') ||
-        msg.includes('Nominal pada struk') ||
-        msg.includes('Permintaan OCR ditolak')
-      ) {
-        throw err;
-      }
-      lastErrorMessage = msg;
-    }
+  if (parsed.is_valid_receipt === false && (!parsed.nominal || Number(parsed.nominal) <= 0)) {
+    throw new Error(
+      'Gambar tidak terdeteksi sebagai struk atau bukti pembayaran. Pastikan nominal pembayaran terlihat jelas.'
+    );
   }
 
-  throw new Error(lastErrorMessage);
+  const cleanMerchant = String(parsed.merchant || '').trim() || 'Struk Belanja';
+  const rawNominal = Math.round(Math.abs(Number(parsed.nominal) || 0));
+  if (rawNominal <= 0) {
+    throw new Error(
+      'Nominal pada struk belum terbaca dengan jelas. Coba gunakan foto yang lebih terang dan fokus.'
+    );
+  }
+
+  const rawTanggal = String(parsed.tanggal || '').trim();
+  const displayTanggal = rawTanggal ? formatToDisplay(rawTanggal) : today.displayDate;
+  const ringkasanOcr = String(parsed.ringkasan_ocr || cleanMerchant).trim().slice(0, 500);
+  const metodeBayar = normalizePaymentPillar(parsed.metode_bayar, ringkasanOcr);
+  const kategori = normalizeCategory(parsed.kategori, cleanMerchant, ringkasanOcr);
+
+  return {
+    merchant: cleanMerchant,
+    nominal: rawNominal,
+    tanggal: displayTanggal,
+    metode_bayar: metodeBayar,
+    kategori,
+    ringkasan_ocr: ringkasanOcr,
+    processingTimeMs: interaction.processingTimeMs,
+    keyIndexUsed: interaction.keyIndexUsed,
+    totalKeysConfigured: interaction.totalKeysConfigured,
+    modelUsed: interaction.modelUsed,
+  };
 }

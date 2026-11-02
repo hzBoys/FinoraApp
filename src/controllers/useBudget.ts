@@ -3,6 +3,7 @@ import { BUDGET_CATS, INITIAL_BUDGET } from '../models/mockData';
 import { Budget, Tx } from '../models/types';
 import { analyzeSmartAdvisor } from './services/smartAdvisorService';
 import { budgetService } from '../services/db/budgetService';
+import { generateSmartAdvisorNarrative } from '../services/ai/geminiAdvisorService';
 import { getCurrentPeriodKey, getPeriodKeyFromDate } from '../utils/date';
 
 export type CategoryLimits = Record<string, number>;
@@ -28,12 +29,15 @@ export function buildDefaultAdvisorLimits(total: number): CategoryLimits {
 export function useBudget(transactions: Tx[], userId?: string | number) {
   const [budget, setBudget] = useState<Budget>(INITIAL_BUDGET);
   const [categoryLimits, setCategoryLimits] = useState<CategoryLimits>({});
+  const [aiRecommendationText, setAiRecommendationText] = useState<string | null>(null);
+  const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
 
   const activePeriod = useMemo(() => getCurrentPeriodKey(), []);
 
   useEffect(() => {
     setBudget({ ...INITIAL_BUDGET, periode: activePeriod });
     setCategoryLimits({});
+    setAiRecommendationText(null);
 
     if (!userId || typeof userId !== 'string' || !userId.includes('-')) return;
 
@@ -43,6 +47,13 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
       if (isMounted && remote) {
         setBudget(remote);
         setCategoryLimits(remote.category_limits ?? {});
+
+        if (typeof remote.budget_id === 'string' && remote.budget_id.includes('-')) {
+          const latestRec = await budgetService.fetchLatestRecommendation(remote.budget_id);
+          if (isMounted && latestRec?.isi_saran) {
+            setAiRecommendationText(latestRec.isi_saran);
+          }
+        }
       }
     }
     loadBudget();
@@ -104,7 +115,9 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
     [monthlyTransactions, activePeriod]
   );
 
-  const setBudgetLimit = (total: number, customLimits?: CategoryLimits) => {
+  const advisorRecommendationText = aiRecommendationText || advisorAnalysis.recommendationText;
+
+  const setBudgetLimit = async (total: number, customLimits?: CategoryLimits) => {
     const nextLimits = customLimits ?? buildDefaultAdvisorLimits(total);
 
     setBudget((prev) => ({
@@ -116,7 +129,7 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
     setCategoryLimits(nextLimits);
 
     if (userId && typeof userId === 'string' && userId.includes('-')) {
-      budgetService.upsertBudget(userId, {
+      const saved = await budgetService.upsertBudget(userId, {
         periode: activePeriod,
         total_anggaran: total,
         persen_kebutuhan: budget.persen_kebutuhan ?? 60,
@@ -124,6 +137,60 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
         persen_tabungan: budget.persen_tabungan ?? 20,
         category_limits: nextLimits,
       });
+      if (saved) {
+        setBudget(saved);
+      }
+    }
+  };
+
+  const refreshAiAdvisor = async (): Promise<string> => {
+    if (isGeneratingAdvice) return advisorRecommendationText;
+
+    setIsGeneratingAdvice(true);
+    try {
+      const aiRes = await generateSmartAdvisorNarrative({
+        periode: activePeriod,
+        totalBudget: budget.total_anggaran,
+        totalUsed,
+        analysis: advisorAnalysis,
+        categorySpendings,
+      });
+
+      setAiRecommendationText(aiRes.isi_saran);
+
+      if (userId && typeof userId === 'string' && userId.includes('-')) {
+        let targetBudgetId =
+          typeof budget.budget_id === 'string' && budget.budget_id.includes('-')
+            ? budget.budget_id
+            : null;
+
+        if (!targetBudgetId) {
+          const ensuredBudget = await budgetService.upsertBudget(userId, {
+            periode: activePeriod,
+            total_anggaran: budget.total_anggaran,
+            persen_kebutuhan: budget.persen_kebutuhan ?? 60,
+            persen_gaya_hidup: budget.persen_gaya_hidup ?? 20,
+            persen_tabungan: budget.persen_tabungan ?? 20,
+            category_limits: Object.keys(categoryLimits).length > 0 ? categoryLimits : null,
+          });
+          if (ensuredBudget && typeof ensuredBudget.budget_id === 'string') {
+            setBudget(ensuredBudget);
+            targetBudgetId = ensuredBudget.budget_id;
+          }
+        }
+
+        if (targetBudgetId) {
+          await budgetService.saveRecommendation(
+            targetBudgetId,
+            aiRes.isi_saran,
+            advisorAnalysis.lifestyleReductionNeeded
+          );
+        }
+      }
+
+      return aiRes.isi_saran;
+    } finally {
+      setIsGeneratingAdvice(false);
     }
   };
 
@@ -137,6 +204,10 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
     unallocated,
     nearLimitCategories,
     advisorAnalysis,
+    advisorRecommendationText,
+    isAiRecommendation: Boolean(aiRecommendationText),
+    isGeneratingAdvice,
     setBudgetLimit,
+    refreshAiAdvisor,
   };
 }
