@@ -36,6 +36,7 @@ export type Tx = {
   account_id?: number | string;
   merchant?: string;
   metode_bayar?: string;
+  catatan?: string;
 };
 
 export type ScanResult = {
@@ -56,6 +57,7 @@ export type Budget = {
   persen_gaya_hidup: number;
   persen_tabungan: number;
   total_anggaran: number;
+  category_limits?: Record<string, number> | null;
 };
 
 export type Recommendation = {

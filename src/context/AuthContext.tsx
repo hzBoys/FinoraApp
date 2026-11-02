@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { UserProfile } from '../models/types';
 import { INITIAL_USER } from '../controllers/useUserProfile';
-import { supabase } from '../services/supabase';
+import { isSupabaseConfigured, supabase } from '../services/supabase';
 import { profileService } from '../services/db/profileService';
 
 type AuthContextType = {
@@ -9,10 +9,19 @@ type AuthContextType = {
   isLoadingAuth: boolean;
   currentUser: UserProfile;
   login: (emailOrUser: string, pass: string) => Promise<{ success: boolean; message?: string }>;
-  register: (nama: string, username: string, email: string, pass: string) => Promise<{ success: boolean; message?: string }>;
+  register: (
+    nama: string,
+    username: string,
+    email: string,
+    pass: string
+  ) => Promise<{ success: boolean; message?: string }>;
   logout: () => Promise<void>;
   resetPassword: (email: string) => Promise<{ success: boolean; message: string }>;
-  verifyResetOtp: (email: string, otp: string, newPass: string) => Promise<{ success: boolean; message: string }>;
+  verifyResetOtp: (
+    email: string,
+    otp: string,
+    newPass: string
+  ) => Promise<{ success: boolean; message: string }>;
   updateCurrentUser: (data: Partial<UserProfile>) => Promise<void>;
 };
 
@@ -30,11 +39,17 @@ const AuthContext = createContext<AuthContextType>({
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
-  const [isLoadingAuth, setIsLoadingAuth] = useState(true);
+  const [isLoadingAuth, setIsLoadingAuth] = useState(isSupabaseConfigured);
   const [currentUser, setCurrentUser] = useState<UserProfile>(INITIAL_USER);
+
+  function splitEmail(email: string): string {
+    return email.split('@')[0];
+  }
 
   // Sync session on mount
   useEffect(() => {
+    if (!isSupabaseConfigured) return;
+
     async function initSession() {
       try {
         const { data } = await supabase.auth.getSession();
@@ -55,10 +70,12 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           }
           setIsLoggedIn(true);
         } else {
+          setCurrentUser(INITIAL_USER);
           setIsLoggedIn(false);
         }
       } catch (err) {
         console.warn('Supabase session init error:', err);
+        setCurrentUser(INITIAL_USER);
         setIsLoggedIn(false);
       } finally {
         setIsLoadingAuth(false);
@@ -85,6 +102,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
         setIsLoggedIn(true);
       } else {
+        setCurrentUser(INITIAL_USER);
         setIsLoggedIn(false);
       }
       setIsLoadingAuth(false);
@@ -95,61 +113,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  function splitEmail(email: string): string {
-    return email.split('@')[0];
-  }
-
   const login = async (emailOrUser: string, pass: string) => {
     const term = emailOrUser.trim().toLowerCase();
-    const isEmail = term.includes('@');
 
-    // 1. Try Supabase Auth
-    try {
-      if (isEmail) {
-        const { data, error } = await supabase.auth.signInWithPassword({
-          email: term,
-          password: pass,
-        });
-
-        if (error) {
-          if (error.message.toLowerCase().includes('not confirmed')) {
-            return {
-              success: false,
-              message: 'Email belum dikonfirmasi. Pastikan opsi "Confirm email" di Dashboard Supabase telah dimatikan.',
-            };
-          }
-          if (error.message.toLowerCase().includes('invalid login credentials')) {
-            return {
-              success: false,
-              message: 'Email atau kata sandi tidak sesuai.',
-            };
-          }
-          return { success: false, message: error.message };
-        }
-
-        if (data?.user) {
-          const remoteProfile = await profileService.fetchProfile(data.user.id);
-          if (remoteProfile) {
-            setCurrentUser(remoteProfile);
-          } else {
-            setCurrentUser({
-              id: data.user.id,
-              nama: data.user.user_metadata?.nama || splitEmail(term),
-              username: data.user.user_metadata?.username || splitEmail(term),
-              email: term,
-              avatarUri: null,
-              role: 'Pengguna Finora',
-            });
-          }
-          setIsLoggedIn(true);
-          return { success: true };
-        }
-      }
-    } catch (err) {
-      console.warn('Supabase auth login exception:', err);
-    }
-
-    // 2. Local Fallback for Demo Account
+    // 1. Local Demo Account Support (explicit demo credentials only)
     if (
       (term === 'demo@finora.app' || term === 'userfinora' || term === 'demo') &&
       pass === 'password123'
@@ -159,15 +126,99 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       return { success: true };
     }
 
+    if (!isSupabaseConfigured) {
+      return {
+        success: false,
+        message: 'Konfigurasi Supabase belum tersedia di file .env.',
+      };
+    }
+
+    // 2. Resolve username -> email via secure RPC if input is not an email
+    let targetEmail = term;
+    try {
+      if (!term.includes('@')) {
+        const { data: resolvedEmail, error: rpcError } = await supabase.rpc(
+          'resolve_email_by_username',
+          { p_username: term }
+        );
+
+        if (rpcError) {
+          console.warn('resolve_email_by_username warning:', rpcError.message);
+        }
+
+        if (!resolvedEmail || typeof resolvedEmail !== 'string') {
+          return {
+            success: false,
+            message: 'Username tidak ditemukan. Pastikan username sesuai atau masuk menggunakan email.',
+          };
+        }
+
+        targetEmail = resolvedEmail.trim().toLowerCase();
+      }
+
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email: targetEmail,
+        password: pass,
+      });
+
+      if (error) {
+        if (error.message.toLowerCase().includes('not confirmed')) {
+          return {
+            success: false,
+            message:
+              'Email belum dikonfirmasi. Pastikan opsi "Confirm email" di Dashboard Supabase telah dimatikan.',
+          };
+        }
+        if (error.message.toLowerCase().includes('invalid login credentials')) {
+          return {
+            success: false,
+            message: 'Email/username atau kata sandi tidak sesuai.',
+          };
+        }
+        return { success: false, message: error.message };
+      }
+
+      if (data?.user) {
+        const remoteProfile = await profileService.fetchProfile(data.user.id);
+        if (remoteProfile) {
+          setCurrentUser(remoteProfile);
+        } else {
+          setCurrentUser({
+            id: data.user.id,
+            nama: data.user.user_metadata?.nama || splitEmail(targetEmail),
+            username: data.user.user_metadata?.username || splitEmail(targetEmail),
+            email: targetEmail,
+            avatarUri: null,
+            role: 'Pengguna Finora',
+          });
+        }
+        setIsLoggedIn(true);
+        return { success: true };
+      }
+    } catch (err) {
+      console.warn('Supabase auth login exception:', err);
+      return {
+        success: false,
+        message: 'Gagal terhubung ke server autentikasi. Periksa koneksi internet Anda.',
+      };
+    }
+
     return {
       success: false,
-      message: 'Email atau kata sandi tidak sesuai. Silakan daftar jika belum memiliki akun.',
+      message: 'Email/username atau kata sandi tidak sesuai. Silakan daftar jika belum memiliki akun.',
     };
   };
 
   const register = async (nama: string, username: string, email: string, pass: string) => {
     const cleanEmail = email.trim().toLowerCase();
     const cleanUsername = username.trim().toLowerCase();
+
+    if (!isSupabaseConfigured) {
+      return {
+        success: false,
+        message: 'Konfigurasi Supabase belum tersedia di file .env.',
+      };
+    }
 
     try {
       const { data, error } = await supabase.auth.signUp({
@@ -181,67 +232,79 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         },
       });
 
-      if (!error && data?.user) {
-        // Attempt immediate login so session token is saved
-        await supabase.auth.signInWithPassword({
-          email: cleanEmail,
-          password: pass,
-        });
+      if (error) {
+        console.warn('Supabase signUp error:', error.message);
+        if (error.message.toLowerCase().includes('already registered')) {
+          return {
+            success: false,
+            message: 'Email sudah terdaftar. Silakan masuk menggunakan akun Anda.',
+          };
+        }
+        return { success: false, message: error.message };
+      }
 
-        const newUserProfile: UserProfile = {
-          id: data.user.id,
-          nama: nama.trim(),
-          username: cleanUsername,
-          email: cleanEmail,
-          avatarUri: null,
-          role: 'Pengguna Finora',
-        };
-        setCurrentUser(newUserProfile);
+      if (data?.user) {
+        if (!data.session) {
+          await supabase.auth.signInWithPassword({
+            email: cleanEmail,
+            password: pass,
+          });
+        }
+
+        const remoteProfile = await profileService.fetchProfile(data.user.id);
+        if (remoteProfile) {
+          setCurrentUser(remoteProfile);
+        } else {
+          setCurrentUser({
+            id: data.user.id,
+            nama: nama.trim(),
+            username: cleanUsername,
+            email: cleanEmail,
+            avatarUri: null,
+            role: 'Pengguna Finora',
+          });
+        }
+
         setIsLoggedIn(true);
         return { success: true };
       }
-
-      if (error) {
-        console.warn('Supabase signUp error:', error.message);
-        return { success: false, message: error.message };
-      }
     } catch (err) {
       console.warn('Supabase signUp exception:', err);
+      return {
+        success: false,
+        message: 'Gagal mendaftarkan akun. Periksa koneksi internet Anda dan coba lagi.',
+      };
     }
 
-    // Fallback registration
-    const fallbackUser: UserProfile = {
-      id: Date.now().toString(),
-      nama: nama.trim(),
-      username: cleanUsername,
-      email: cleanEmail,
-      avatarUri: null,
-      role: 'Pengguna Finora',
+    return {
+      success: false,
+      message: 'Pendaftaran tidak dapat diproses saat ini. Silakan coba lagi.',
     };
-    setCurrentUser(fallbackUser);
-    setIsLoggedIn(true);
-    return { success: true };
   };
 
   const logout = async () => {
     try {
-      await supabase.auth.signOut();
+      if (isSupabaseConfigured) {
+        await supabase.auth.signOut();
+      }
     } catch (err) {
       console.warn('Supabase signOut error:', err);
     }
+    setCurrentUser(INITIAL_USER);
     setIsLoggedIn(false);
   };
 
   const resetPassword = async (email: string) => {
     const clean = email.trim().toLowerCase();
+    if (!isSupabaseConfigured) {
+      return {
+        success: false,
+        message: 'Konfigurasi Supabase belum tersedia di file .env.',
+      };
+    }
+
     try {
       const { error } = await supabase.auth.resetPasswordForEmail(clean);
-      if (!error) {
-        return {
-          success: true,
-          message: `Kode verifikasi 6 digit telah dikirim ke ${clean}.`,
-        };
-      }
       if (error) {
         console.warn('Supabase resetPassword error:', error.message);
         return {
@@ -249,14 +312,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           message: error.message,
         };
       }
-    } catch (err: any) {
-      console.warn('Supabase resetPassword exception:', err);
-    }
 
-    return {
-      success: true,
-      message: `Kode verifikasi 6 digit telah dikirim ke ${clean}.`,
-    };
+      return {
+        success: true,
+        message: `Kode verifikasi telah dikirim ke ${clean}.`,
+      };
+    } catch (err) {
+      console.warn('Supabase resetPassword exception:', err);
+      return {
+        success: false,
+        message: 'Gagal mengirim kode pemulihan. Periksa koneksi internet Anda.',
+      };
+    }
   };
 
   const verifyResetOtp = async (
@@ -267,6 +334,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const cleanEmail = email.trim().toLowerCase();
     const cleanOtp = otp.trim();
 
+    if (!isSupabaseConfigured) {
+      return {
+        success: false,
+        message: 'Konfigurasi Supabase belum tersedia di file .env.',
+      };
+    }
+
     try {
       const { data, error } = await supabase.auth.verifyOtp({
         email: cleanEmail,
@@ -276,13 +350,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
       if (error) {
         console.warn('verifyOtp error:', error.message);
-        // Fallback simulation for offline testing
-        if (cleanOtp === '123456') {
-          return {
-            success: true,
-            message: 'Kata sandi berhasil diperbarui. Silakan masuk dengan kata sandi baru.',
-          };
-        }
         return {
           success: false,
           message: error.message || 'Kode OTP tidak valid atau telah kedaluwarsa.',
@@ -303,6 +370,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
         // Sign out recovery session so user explicitly logs in with new password
         await supabase.auth.signOut();
+        setCurrentUser(INITIAL_USER);
         setIsLoggedIn(false);
 
         return {
@@ -310,15 +378,11 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           message: 'Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru.',
         };
       }
-    } catch (err: any) {
+    } catch (err) {
       console.warn('verifyResetOtp exception:', err);
-    }
-
-    // Fallback simulation for offline testing
-    if (cleanOtp === '123456') {
       return {
-        success: true,
-        message: 'Kata sandi Anda berhasil diperbarui! Silakan masuk dengan kata sandi baru.',
+        success: false,
+        message: 'Gagal memverifikasi kode OTP. Periksa koneksi internet Anda.',
       };
     }
 
@@ -329,8 +393,22 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateCurrentUser = async (data: Partial<UserProfile>) => {
+    const prevEmail = currentUser.email;
     setCurrentUser((prev) => ({ ...prev, ...data }));
+
     if (typeof currentUser.id === 'string' && currentUser.id.includes('-')) {
+      if (
+        isSupabaseConfigured &&
+        data.email &&
+        data.email.trim().toLowerCase() !== prevEmail.trim().toLowerCase()
+      ) {
+        const { error: authEmailErr } = await supabase.auth.updateUser({
+          email: data.email.trim().toLowerCase(),
+        });
+        if (authEmailErr) {
+          console.warn('Supabase auth email sync warning:', authEmailErr.message);
+        }
+      }
       await profileService.updateProfile(currentUser.id, data);
     }
   };

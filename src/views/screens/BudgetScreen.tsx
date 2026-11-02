@@ -4,7 +4,7 @@ import { useThemeContext } from '../../context/ThemeContext';
 import { LAYOUT } from '../../constants/theme';
 import { FONT } from '../../constants/typography';
 import { CategoryIconBadge } from '../components/icons/CategoryIconBadge';
-import { getCurrentPeriodLabel } from '../../utils/date';
+import { formatPeriodKeyToLabel, getCurrentPeriodLabel } from '../../utils/date';
 import { Ionicons } from '@expo/vector-icons';
 
 type BudgetCategoryItem = {
@@ -55,7 +55,7 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({
     >
       {/* Header Info */}
       <View style={styles.periodRow}>
-        <Text style={[styles.periodLabel, { color: colors.textSecondary }]}>{periode}</Text>
+        <Text style={[styles.periodLabel, { color: colors.textSecondary }]}>{formatPeriodKeyToLabel(periode)}</Text>
       </View>
 
       {/* Kartu Ringkasan Total Anggaran */}

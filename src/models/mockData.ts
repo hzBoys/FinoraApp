@@ -37,6 +37,7 @@ export const BUDGET_CATS = [
   { key: 'Transportasi', label: 'Transportasi',   budget: 0, type: 'kebutuhan'  },
   { key: 'Belanja',      label: 'Belanja',        budget: 0, type: 'gaya_hidup' },
   { key: 'Tagihan',      label: 'Tagihan',        budget: 0, type: 'kebutuhan'  },
+  { key: 'Hiburan',      label: 'Hiburan',        budget: 0, type: 'gaya_hidup' },
 ] as const;
 
 export const INITIAL_BUDGET: Budget = {

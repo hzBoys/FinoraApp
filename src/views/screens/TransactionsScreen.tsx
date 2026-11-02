@@ -17,7 +17,7 @@ import { DateRangeFilterModal, DateRangeValue } from '../components/modals/DateR
 import { parseIsoOrDisplayDate } from '../../utils/date';
 import { Ionicons } from '@expo/vector-icons';
 
-const FILTER_CATS = ['Semua', 'Pemasukan', 'Makan', 'Belanja', 'Transportasi', 'Tagihan', 'Transfer'];
+const FILTER_CATS = ['Semua', 'Pemasukan', 'Makan', 'Belanja', 'Hiburan', 'Transportasi', 'Tagihan', 'Transfer'];
 
 type TransactionsScreenProps = {
   transactions: Tx[];

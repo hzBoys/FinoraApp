@@ -1,4 +1,5 @@
 import { Tx } from '../../models/types';
+import { getPeriodKeyFromDate } from '../../utils/date';
 
 export type BudgetAllocationAnalysis = {
   totalIncome: number;
@@ -14,10 +15,18 @@ export type BudgetAllocationAnalysis = {
 };
 
 /**
- * Analisis alokasi rasio anggaran (TC-04: Acuan 60% Kebutuhan, 20% Gaya Hidup, 20% Tabungan)
+ * Analisis alokasi rasio anggaran (TC-04: Acuan 60% Kebutuhan, 20% Gaya Hidup, 20% Tabungan).
+ * Bila periodKey ('YYYY-MM') diberikan, hanya mengevaluasi transaksi pada bulan aktif tersebut.
  */
-export function analyzeSmartAdvisor(transactions: Tx[]): BudgetAllocationAnalysis {
-  if (!transactions || transactions.length === 0) {
+export function analyzeSmartAdvisor(
+  transactions: Tx[],
+  periodKey?: string
+): BudgetAllocationAnalysis {
+  const scopedTransactions = periodKey
+    ? (transactions || []).filter((t) => getPeriodKeyFromDate(t.date) === periodKey)
+    : transactions || [];
+
+  if (scopedTransactions.length === 0) {
     return {
       totalIncome: 0,
       totalExpense: 0,
@@ -28,20 +37,20 @@ export function analyzeSmartAdvisor(transactions: Tx[]): BudgetAllocationAnalysi
       pctGayaHidup: 0,
       pctTabungan: 0,
       recommendationText:
-        'Belum ada data transaksi. Catat transaksi pertama Anda atau pindai struk untuk mengaktifkan analisis finansial cerdas Finora.',
+        'Belum ada data transaksi bulan ini. Catat transaksi pertama Anda atau pindai struk untuk mengaktifkan analisis finansial cerdas Finora.',
       lifestyleReductionNeeded: 0,
     };
   }
 
-  const totalIncome = transactions
+  const totalIncome = scopedTransactions
     .filter((t) => t.income)
     .reduce((s, t) => s + t.amount, 0);
 
-  const kebutuhanExpenses = transactions
+  const kebutuhanExpenses = scopedTransactions
     .filter((t) => !t.income && ['Makan', 'Transportasi', 'Tagihan'].includes(t.cat))
     .reduce((s, t) => s + t.amount, 0);
 
-  const gayaHidupExpenses = transactions
+  const gayaHidupExpenses = scopedTransactions
     .filter((t) => !t.income && ['Belanja', 'Hiburan'].includes(t.cat))
     .reduce((s, t) => s + t.amount, 0);
 
@@ -58,7 +67,7 @@ export function analyzeSmartAdvisor(transactions: Tx[]): BudgetAllocationAnalysi
       pctGayaHidup: 0,
       pctTabungan: 0,
       recommendationText:
-        'Belum ada data transaksi tercatat. Mulai catat pengeluaran Anda untuk melihat rasio 60/20/20.',
+        'Belum ada data pengeluaran atau pemasukan bulan ini. Mulai catat pengeluaran Anda untuk melihat rasio 60/20/20.',
       lifestyleReductionNeeded: 0,
     };
   }
@@ -69,17 +78,17 @@ export function analyzeSmartAdvisor(transactions: Tx[]): BudgetAllocationAnalysi
   const pctGayaHidup = baseIncome > 0 ? Math.round((gayaHidupExpenses / baseIncome) * 100) : 0;
   const pctTabungan = Math.max(0, 100 - (pctKebutuhan + pctGayaHidup));
 
-  const targetGayaHidupMax = baseIncome * 0.2;
+  const targetGayaHidupMax = Math.round(baseIncome * 0.2);
   const lifestyleReductionNeeded = Math.max(0, gayaHidupExpenses - targetGayaHidupMax);
 
-  let recommendationText = 'Pola pengeluaran Anda seimbang dan memenuhi rasio ideal 60/20/20.';
+  let recommendationText = 'Pola pengeluaran bulan ini seimbang dan memenuhi rasio ideal 60/20/20.';
 
   if (pctGayaHidup > 20) {
-    recommendationText = `Pengeluaran gaya hidup mencapai ${pctGayaHidup}% (melewati batas 20%). Kurangi pengeluaran gaya hidup sebesar Rp${lifestyleReductionNeeded.toLocaleString(
+    recommendationText = `Pengeluaran gaya hidup bulan ini mencapai ${pctGayaHidup}% (melewati batas 20%). Kurangi pengeluaran gaya hidup sebesar Rp${lifestyleReductionNeeded.toLocaleString(
       'id-ID'
     )} agar alokasi tabungan 20% tetap tercapai.`;
   } else if (pctKebutuhan > 60) {
-    recommendationText = `Kebutuhan pokok menyerap ${pctKebutuhan}% pemasukan. Coba efisiensi anggaran belanja harian untuk menjaga stabilitas kas.`;
+    recommendationText = `Kebutuhan pokok bulan ini menyerap ${pctKebutuhan}% pemasukan. Coba efisiensi anggaran belanja harian untuk menjaga stabilitas kas.`;
   }
 
   return {

@@ -73,9 +73,9 @@ export function buildDateResult(year: number, monthIndex: number, day: number): 
   const isoDate = `${safeYear}-${String(safeMonthIndex + 1).padStart(2, '0')}-${String(safeDay).padStart(2, '0')}`;
 
   return {
-    day: safeDay,
-    monthIndex: safeMonthIndex,
-    year: safeYear,
+    day,
+    monthIndex,
+    year,
     dayName,
     monthName,
     shortMonth,
@@ -96,11 +96,24 @@ export function getCurrentPeriodLabel(): string {
   return `${MONTH_NAMES[now.getMonth()]} ${now.getFullYear()}`;
 }
 
+export function formatPeriodKeyToLabel(periodKeyOrLabel?: string): string {
+  if (!periodKeyOrLabel) return getCurrentPeriodLabel();
+  const match = periodKeyOrLabel.trim().match(/^(\d{4})-(\d{2})$/);
+  if (match) {
+    const year = parseInt(match[1], 10);
+    const monthIdx = parseInt(match[2], 10) - 1;
+    if (monthIdx >= 0 && monthIdx < 12) {
+      return `${MONTH_NAMES[monthIdx]} ${year}`;
+    }
+  }
+  return periodKeyOrLabel;
+}
+
 export function parseIsoOrDisplayDate(input: string): SelectedDateResult {
   if (!input) return getDeviceNow();
 
-  // 1. Try ISO YYYY-MM-DD
-  const isoMatch = input.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  // 1. Try ISO YYYY-MM-DD (or ISO timestamp prefix)
+  const isoMatch = input.trim().match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (isoMatch) {
     const y = parseInt(isoMatch[1], 10);
     const m = parseInt(isoMatch[2], 10) - 1;
@@ -124,6 +137,11 @@ export function parseIsoOrDisplayDate(input: string): SelectedDateResult {
   const year = yearMatch ? parseInt(yearMatch[1], 10) : new Date().getFullYear();
 
   return buildDateResult(year, monthIndex, day);
+}
+
+export function getPeriodKeyFromDate(isoOrStringDate: string): string {
+  const parsed = parseIsoOrDisplayDate(isoOrStringDate);
+  return `${parsed.year}-${String(parsed.monthIndex + 1).padStart(2, '0')}`;
 }
 
 export function formatToDisplay(isoOrStringDate: string): string {

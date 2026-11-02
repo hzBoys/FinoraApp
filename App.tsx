@@ -26,6 +26,7 @@ import { useTransactions } from './src/controllers/useTransactions';
 import { usePortfolio } from './src/controllers/usePortfolio';
 import { useBudget } from './src/controllers/useBudget';
 import { useMagicReceipt } from './src/controllers/useMagicReceipt';
+import { accountService } from './src/services/db/accountService';
 import {
   notificationService,
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -71,6 +72,10 @@ function MainApp() {
   // Horizontal Swiping Pager Mechanics
   const { width: screenWidth } = useWindowDimensions();
   const horizontalScrollRef = useRef<React.ElementRef<typeof ScrollView>>(null);
+
+  useEffect(() => {
+    setActiveTab('home');
+  }, [isLoggedIn, currentUser.id]);
 
   const handleSelectTab = (tabKey: TabKey) => {
     const index = TABS.findIndex((t) => t.key === tabKey);
@@ -129,12 +134,38 @@ function MainApp() {
     addTransaction,
   } = useTransactions(currentUser.id);
 
-  const { accounts, totalBalance, pillars, deductAccountBalance } = usePortfolio(currentUser.id);
+  const {
+    accounts,
+    totalBalance,
+    pillars,
+    syncAccountBalanceLocal,
+    deductAccountBalance,
+  } = usePortfolio(currentUser.id);
 
-  const handleTransactionAdded = (newTx: Tx) => {
-    addTransaction(newTx);
+  const handleTransactionAdded = async (newTx: Tx) => {
     const targetAccountId = newTx.account_id ?? (accounts.length > 0 ? accounts[0].account_id : 1);
-    deductAccountBalance(targetAccountId, newTx.amount, newTx.income);
+    const txWithAccount: Tx = { ...newTx, account_id: targetAccountId };
+    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+
+    deductAccountBalance(targetAccountId, txWithAccount.amount, txWithAccount.income, isRemoteUser);
+    const res = await addTransaction(txWithAccount);
+
+    if (isRemoteUser) {
+      if (res.usedAtomicRpc && res.newBalance !== null && res.accountId) {
+        syncAccountBalanceLocal(res.accountId, res.newBalance);
+      } else if (
+        !res.usedAtomicRpc &&
+        typeof targetAccountId === 'string' &&
+        targetAccountId.includes('-')
+      ) {
+        const targetAcc = accounts.find((a) => a.account_id === targetAccountId);
+        if (targetAcc) {
+          const delta = txWithAccount.income ? txWithAccount.amount : -txWithAccount.amount;
+          const fallbackBalance = Math.max(0, targetAcc.saldo + delta);
+          await accountService.updateAccountBalance(targetAccountId, fallbackBalance);
+        }
+      }
+    }
   };
 
   const magicReceipt = useMagicReceipt(handleTransactionAdded);
@@ -142,6 +173,7 @@ function MainApp() {
   const {
     budget,
     categorySpendings,
+    categoryLimits,
     totalUsed,
     totalPct,
     totalRemaining,
@@ -383,6 +415,7 @@ function MainApp() {
       <SetBudgetModal
         visible={isSetBudgetOpen}
         currentTotal={budget.total_anggaran}
+        currentLimits={categoryLimits}
         onSave={setBudgetLimit}
         onClose={() => setIsSetBudgetOpen(false)}
         bottomSafeInset={insets.bottom}

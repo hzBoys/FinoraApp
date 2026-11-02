@@ -32,7 +32,18 @@ yarn-error.*
 
 # local env files
 .env
-.env*.local
+.env.*
+!.env.example
+env
+
+# OS & local project documents (kept local only)
+desktop.ini
+/*.pdf
+/*.docx
+/*.doc
+/*.pptx
+/*.ppt
+/bukti-uji-backend/
 
 # typescript
 *.tsbuildinfo

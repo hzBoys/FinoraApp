@@ -83,6 +83,12 @@ export const MagicReceiptModal: React.FC<MagicReceiptModalProps> = ({
     }
   }, [extractedData]);
 
+  useEffect(() => {
+    if (accountList.length > 0 && !accountList.some((a) => a.account_id === selectedAccountId)) {
+      setSelectedAccountId(accountList[0].account_id);
+    }
+  }, [visible, accounts]);
+
   const handleSave = () => {
     const num = parseRupiahInput(nominalStr);
     const acc = accountList.find((a) => a.account_id === selectedAccountId);

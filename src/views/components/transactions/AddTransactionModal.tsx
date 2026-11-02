@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Keyboard,
   KeyboardAvoidingView,
@@ -21,7 +21,7 @@ import { getDeviceNow, SelectedDateResult } from '../../../utils/date';
 import { formatRupiahInput, parseRupiahInput } from '../../../utils/currency';
 import { Ionicons } from '@expo/vector-icons';
 
-const EXPENSE_CATS = ['Makan', 'Transportasi', 'Belanja', 'Tagihan', 'Transfer'] as const;
+const EXPENSE_CATS = ['Makan', 'Transportasi', 'Belanja', 'Hiburan', 'Tagihan', 'Transfer'] as const;
 
 type AddTransactionModalProps = {
   visible: boolean;
@@ -78,6 +78,12 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       resetForm();
     }
   }, [visible]);
+
+  useEffect(() => {
+    if (accountList.length > 0 && !accountList.some((a) => a.account_id === selectedAccountId)) {
+      setSelectedAccountId(accountList[0].account_id);
+    }
+  }, [accounts]);
 
   const handleClose = () => {
     resetForm();

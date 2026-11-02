@@ -1,20 +1,26 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.EXPO_PUBLIC_SUPABASE_URL || '';
-const supabaseAnonKey = process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '';
+const rawSupabaseUrl = (process.env.EXPO_PUBLIC_SUPABASE_URL || '').trim();
+const rawSupabaseAnonKey = (process.env.EXPO_PUBLIC_SUPABASE_ANON_KEY || '').trim();
 
-if (!supabaseUrl || !supabaseAnonKey) {
+export const isSupabaseConfigured = Boolean(rawSupabaseUrl && rawSupabaseAnonKey);
+
+if (!isSupabaseConfigured) {
   console.warn(
     'Supabase config missing: Please provide EXPO_PUBLIC_SUPABASE_URL and EXPO_PUBLIC_SUPABASE_ANON_KEY in your .env file.'
   );
 }
 
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+// Safe fallback prevents createClient from throwing synchronously at module load if .env is missing
+const safeSupabaseUrl = rawSupabaseUrl || 'https://placeholder.supabase.co';
+const safeSupabaseAnonKey = rawSupabaseAnonKey || 'placeholder-anon-key';
+
+export const supabase = createClient(safeSupabaseUrl, safeSupabaseAnonKey, {
   auth: {
     storage: AsyncStorage,
-    autoRefreshToken: true,
-    persistSession: true,
+    autoRefreshToken: isSupabaseConfigured,
+    persistSession: isSupabaseConfigured,
     detectSessionInUrl: false,
   },
 });

@@ -20,6 +20,7 @@ import { formatRupiahInput, parseRupiahInput } from '../../../utils/currency';
 type SetBudgetModalProps = {
   visible: boolean;
   currentTotal: number;
+  currentLimits?: CategoryLimits;
   onSave: (total: number, customLimits?: CategoryLimits) => void;
   onClose: () => void;
   bottomSafeInset?: number;
@@ -28,6 +29,7 @@ type SetBudgetModalProps = {
 export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
   visible,
   currentTotal,
+  currentLimits,
   onSave,
   onClose,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
@@ -41,29 +43,35 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
   const [makanStr, setMakanStr] = useState('900.000');
   const [transStr, setTransStr] = useState('450.000');
   const [tagihanStr, setTagihanStr] = useState('450.000');
-  const [belanjaStr, setBelanjaStr] = useState('600.000');
+  const [belanjaStr, setBelanjaStr] = useState('300.000');
+  const [hiburanStr, setHiburanStr] = useState('300.000');
   const [error, setError] = useState('');
 
   useEffect(() => {
     if (visible) {
       const initTotal = currentTotal > 0 ? currentTotal : 3000000;
       setTotalStr(formatRupiahInput(initTotal));
-      setMakanStr(formatRupiahInput(Math.round(initTotal * 0.3)));
-      setTransStr(formatRupiahInput(Math.round(initTotal * 0.15)));
-      setTagihanStr(formatRupiahInput(Math.round(initTotal * 0.15)));
-      setBelanjaStr(formatRupiahInput(Math.round(initTotal * 0.2)));
+      setMakanStr(formatRupiahInput(currentLimits?.Makan ?? Math.round(initTotal * 0.3)));
+      setTransStr(formatRupiahInput(currentLimits?.Transportasi ?? Math.round(initTotal * 0.15)));
+      setTagihanStr(formatRupiahInput(currentLimits?.Tagihan ?? Math.round(initTotal * 0.15)));
+      setBelanjaStr(formatRupiahInput(currentLimits?.Belanja ?? Math.round(initTotal * 0.1)));
+      setHiburanStr(formatRupiahInput(currentLimits?.Hiburan ?? Math.round(initTotal * 0.1)));
       setError('');
     }
-  }, [visible, currentTotal]);
+  }, [visible, currentTotal, currentLimits]);
 
   const numTotal = parseRupiahInput(totalStr);
 
-  // Smart advisor live auto-breakdown
+  // Smart advisor live auto-breakdown (60% Kebutuhan / 20% Gaya Hidup / 20% Tabungan)
   const advisorMakan = Math.round(numTotal * 0.3);
   const advisorTrans = Math.round(numTotal * 0.15);
   const advisorTagihan = Math.round(numTotal * 0.15);
-  const advisorBelanja = Math.round(numTotal * 0.2);
-  const advisorTabungan = Math.max(0, numTotal - (advisorMakan + advisorTrans + advisorTagihan + advisorBelanja));
+  const advisorBelanja = Math.round(numTotal * 0.1);
+  const advisorHiburan = Math.round(numTotal * 0.1);
+  const advisorTabungan = Math.max(
+    0,
+    numTotal - (advisorMakan + advisorTrans + advisorTagihan + advisorBelanja + advisorHiburan)
+  );
 
   const handleSaveAdvisor = () => {
     if (numTotal <= 0) {
@@ -84,10 +92,13 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
     const numTrans = parseRupiahInput(transStr);
     const numTagihan = parseRupiahInput(tagihanStr);
     const numBelanja = parseRupiahInput(belanjaStr);
+    const numHiburan = parseRupiahInput(hiburanStr);
 
-    const sumCategories = numMakan + numTrans + numTagihan + numBelanja;
+    const sumCategories = numMakan + numTrans + numTagihan + numBelanja + numHiburan;
     if (sumCategories > numTotal) {
-      setError(`Total per pos (Rp${sumCategories.toLocaleString('id-ID')}) melebihi total anggaran (Rp${numTotal.toLocaleString('id-ID')}).`);
+      setError(
+        `Total per pos (Rp${sumCategories.toLocaleString('id-ID')}) melebihi total anggaran (Rp${numTotal.toLocaleString('id-ID')}).`
+      );
       return;
     }
 
@@ -96,6 +107,7 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
       Transportasi: numTrans,
       Tagihan: numTagihan,
       Belanja: numBelanja,
+      Hiburan: numHiburan,
     });
     onClose();
   };
@@ -237,9 +249,17 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
                 <View style={styles.previewRow}>
                   <View style={styles.catLeft}>
                     <CategoryIconBadge categoryOrType="Belanja" size={24} iconSize={12} borderRadius={6} />
-                    <Text style={[styles.catName, { color: colors.textPrimary }]}>Belanja (20%)</Text>
+                    <Text style={[styles.catName, { color: colors.textPrimary }]}>Belanja (10%)</Text>
                   </View>
                   <Text style={[styles.catValue, { color: colors.textPrimary }]}>Rp{advisorBelanja.toLocaleString('id-ID')}</Text>
+                </View>
+
+                <View style={styles.previewRow}>
+                  <View style={styles.catLeft}>
+                    <CategoryIconBadge categoryOrType="Hiburan" size={24} iconSize={12} borderRadius={6} />
+                    <Text style={[styles.catName, { color: colors.textPrimary }]}>Hiburan (10%)</Text>
+                  </View>
+                  <Text style={[styles.catValue, { color: colors.textPrimary }]}>Rp{advisorHiburan.toLocaleString('id-ID')}</Text>
                 </View>
 
                 <View style={[styles.previewRow, { borderBottomWidth: 0 }]}>
@@ -312,6 +332,21 @@ export const SetBudgetModal: React.FC<SetBudgetModalProps> = ({
                       style={[styles.smallInput, { backgroundColor: isDark ? '#242426' : colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
                       value={belanjaStr}
                       onChangeText={(t) => { setBelanjaStr(formatRupiahInput(t)); setError(''); }}
+                      keyboardType="number-pad"
+                      placeholder="0"
+                      placeholderTextColor={colors.textMuted}
+                    />
+                  </View>
+                </View>
+
+                <View style={styles.manualFieldRow}>
+                  <CategoryIconBadge categoryOrType="Hiburan" size={28} iconSize={14} borderRadius={7} />
+                  <View style={{ flex: 1 }}>
+                    <Text style={[styles.manualLabel, { color: colors.textSecondary }]}>Hiburan</Text>
+                    <TextInput
+                      style={[styles.smallInput, { backgroundColor: isDark ? '#242426' : colors.surface, borderColor: colors.border, color: colors.textPrimary }]}
+                      value={hiburanStr}
+                      onChangeText={(t) => { setHiburanStr(formatRupiahInput(t)); setError(''); }}
                       keyboardType="number-pad"
                       placeholder="0"
                       placeholderTextColor={colors.textMuted}
