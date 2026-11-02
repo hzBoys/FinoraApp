@@ -27,6 +27,7 @@ import { usePortfolio } from './src/controllers/usePortfolio';
 import { useBudget } from './src/controllers/useBudget';
 import { useMagicReceipt } from './src/controllers/useMagicReceipt';
 import { accountService } from './src/services/db/accountService';
+import { resolveImagePayload, storageService } from './src/services/db/storageService';
 import {
   notificationService,
   DEFAULT_NOTIFICATION_PREFERENCES,
@@ -166,9 +167,11 @@ function MainApp() {
         }
       }
     }
+
+    return res.transactionId;
   };
 
-  const magicReceipt = useMagicReceipt(handleTransactionAdded);
+  const magicReceipt = useMagicReceipt(handleTransactionAdded, currentUser.id);
 
   const {
     budget,
@@ -203,10 +206,26 @@ function MainApp() {
           mediaTypes: ['images'],
           allowsEditing: true,
           aspect: [1, 1],
-          quality: 0.8,
+          quality: 0.7,
+          base64: true,
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
-          updateCurrentUser({ avatarUri: result.assets[0].uri });
+          const asset = result.assets[0];
+          await updateCurrentUser({ avatarUri: asset.uri });
+
+          if (typeof currentUser.id === 'string' && currentUser.id.includes('-')) {
+            const imgPayload = await resolveImagePayload(asset.uri, asset.base64, asset.mimeType);
+            if (imgPayload) {
+              const cloudUrl = await storageService.uploadAvatarImage(
+                currentUser.id,
+                imgPayload.base64,
+                imgPayload.mimeType
+              );
+              if (cloudUrl) {
+                await updateCurrentUser({ avatarUri: cloudUrl });
+              }
+            }
+          }
         }
       } catch {
         Alert.alert('Gagal', 'Terjadi kendala saat memilih foto.');

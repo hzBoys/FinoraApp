@@ -6,9 +6,13 @@ export type OCRReceiptResult = {
   merchant: string;
   metode_bayar: string;
   kategori: string;
+  ringkasan_ocr?: string;
+  processingTimeMs?: number;
+  scanId?: string | null;
+  fileUrl?: string | null;
 };
 
-export const MAX_FILE_SIZE_BYTES = 5000000; // 5 MB
+export const MAX_FILE_SIZE_BYTES = 5000000; // 5 MB (SRS ER-1.1)
 
 export function validateReceiptFile(
   fileSize: number,
@@ -34,19 +38,19 @@ export function validateReceiptFile(
 export function autoCategorizeMerchant(merchant: string, textSnippet: string = ''): string {
   const combined = `${merchant} ${textSnippet}`.toLowerCase();
 
-  if (/makan|food|kopi|warung|resto|mie|bakso|gacoan|padang|kafe/i.test(combined)) {
+  if (/makan|food|kopi|warung|resto|mie|bakso|gacoan|padang|kafe|cafe|bakery|roti|ayam|sate|warteg/i.test(combined)) {
     return 'Makan';
   }
-  if (/bus|grab|gojek|transjakarta|krl|kereta|ojek|angkot|bensin|pertamina|tol/i.test(combined)) {
+  if (/bus|grab|gojek|transjakarta|krl|kereta|ojek|angkot|bensin|pertamina|shell|vivo|parkir|tol/i.test(combined)) {
     return 'Transportasi';
   }
-  if (/bioskop|cinema|xxi|cgv|netflix|spotify|game|steam|konser/i.test(combined)) {
+  if (/bioskop|cinema|xxi|cgv|netflix|spotify|youtube|game|steam|konser|karaoke|hiburan/i.test(combined)) {
     return 'Hiburan';
   }
-  if (/indomaret|alfamart|tokopedia|shopee|lazada|mall|supermarket|belanja|minimarket/i.test(combined)) {
+  if (/indomaret|alfamart|tokopedia|shopee|lazada|mall|supermarket|belanja|minimarket|hypermart|superindo/i.test(combined)) {
     return 'Belanja';
   }
-  if (/pln|token|listrik|pdam|air|internet|wifi|indihome|pulsa|bpjs/i.test(combined)) {
+  if (/pln|token|listrik|pdam|air|internet|wifi|indihome|biznet|pulsa|telkomsel|xl|indosat|bpjs|tagihan/i.test(combined)) {
     return 'Tagihan';
   }
   if (/gopay|ovo|dana|shopeepay|transfer|top up/i.test(combined)) {
@@ -57,7 +61,6 @@ export function autoCategorizeMerchant(merchant: string, textSnippet: string = '
 }
 
 export function extractMockReceipt(mockText?: string): OCRReceiptResult {
-  // Simulasi ekstraksi OCR < 3 detik
   const merchant = mockText?.includes('Sembako') ? 'Toko Sembako Uji' : 'Resto Makan Siang';
   const kategori = autoCategorizeMerchant(merchant);
 

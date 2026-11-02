@@ -121,6 +121,15 @@ export function parseIsoOrDisplayDate(input: string): SelectedDateResult {
     return buildDateResult(y, m, d);
   }
 
+  // 1b. Try Indonesian receipt format DD/MM/YYYY or DD-MM-YYYY
+  const dmyMatch = input.trim().match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](20\d{2})/);
+  if (dmyMatch) {
+    const d = parseInt(dmyMatch[1], 10);
+    const m = parseInt(dmyMatch[2], 10) - 1;
+    const y = parseInt(dmyMatch[3], 10);
+    return buildDateResult(y, m, d);
+  }
+
   // 2. Try parsing string like "27 Okt 2026" or "27 Okt"
   const clean = input.toLowerCase();
   const dayMatch = clean.match(/\b([1-9]|[12][0-9]|3[01])\b/);

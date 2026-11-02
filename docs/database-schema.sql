@@ -104,6 +104,9 @@ CREATE TABLE IF NOT EXISTS public.scan_results (
   teks_ocr TEXT,
   merchant_extracted VARCHAR(100),
   nominal_extracted NUMERIC(15, 2),
+  kategori_extracted VARCHAR(50),
+  metode_extracted VARCHAR(50),
+  processing_time_ms INT,
   status VARCHAR(20) DEFAULT 'success', -- 'pending', 'success', 'failed'
   created_at TIMESTAMPTZ DEFAULT NOW()
 );

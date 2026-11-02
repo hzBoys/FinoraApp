@@ -80,6 +80,17 @@ export const MagicReceiptModal: React.FC<MagicReceiptModalProps> = ({
       setNominalStr(formatRupiahInput(extractedData.nominal));
       setKategori(extractedData.kategori);
       setTanggal(extractedData.tanggal);
+
+      const methodLower = (extractedData.metode_bayar || '').toLowerCase();
+      const targetType = methodLower.includes('wallet')
+        ? 'ewallet'
+        : methodLower.includes('invest')
+        ? 'investasi'
+        : 'bank';
+      const matchedAccount = accountList.find((a) => a.tipe === targetType);
+      if (matchedAccount) {
+        setSelectedAccountId(matchedAccount.account_id);
+      }
     }
   }, [extractedData]);
 
@@ -240,7 +251,12 @@ export const MagicReceiptModal: React.FC<MagicReceiptModalProps> = ({
                 <View style={[styles.receiptPreviewCard, { backgroundColor: colors.isDark ? '#242426' : colors.surface, borderColor: colors.border }]}>
                   <Image source={{ uri: imageUri }} style={styles.receiptThumb} />
                   <View style={{ flex: 1 }}>
-                    <Text style={[styles.badgeSuccess, { color: colors.incomeText }]}>✓ Struk Terbaca (Akurasi &gt; 90%)</Text>
+                    <Text style={[styles.badgeSuccess, { color: colors.incomeText }]}>
+                      ✓ Struk Terbaca AI
+                      {extractedData?.processingTimeMs
+                        ? ` (${(extractedData.processingTimeMs / 1000).toFixed(1)} dtk)`
+                        : ' (Akurasi > 90%)'}
+                    </Text>
                     <Text style={[styles.detectedText, { color: colors.textPrimary }]}>Merchant: {merchant}</Text>
                     <Text style={[styles.detectedText, { color: colors.textSecondary }]}>Tanggal: {tanggal}</Text>
                   </View>
