@@ -90,10 +90,11 @@ function MainApp() {
     }
   };
 
-  // Sync notification preferences on user change
+  // Sync notification preferences on user change & initialize native channels
   useEffect(() => {
     let isMounted = true;
     async function loadNotif() {
+      await notificationService.initNotificationChannels();
       const p = await notificationService.loadPreferences(currentUser.id);
       if (isMounted) {
         setNotifPrefs(p);
