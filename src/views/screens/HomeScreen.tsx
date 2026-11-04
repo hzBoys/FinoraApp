@@ -9,6 +9,7 @@ import { BalanceHeroCard } from '../components/cards/BalanceHeroCard';
 import { BudgetProgressCard } from '../components/cards/BudgetProgressCard';
 import { CashFlowCard } from '../components/cards/CashFlowCard';
 import { TransactionRowItem } from '../components/transactions/TransactionRowItem';
+import { getCurrentPeriodLabel } from '../../utils/date';
 
 type HomeScreenProps = {
   totalBalance: number;
@@ -109,7 +110,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </View>
 
       {/* Arus Kas Bulan Ini */}
-      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Arus Kas Bulan Ini</Text>
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+        Arus Kas{' '}
+        <Text style={{ color: colors.secondary, fontFamily: FONT.bold, fontWeight: '700' }}>
+          {getCurrentPeriodLabel()}
+        </Text>
+      </Text>
       <CashFlowCard totalIn={totalIn} totalOut={totalOut} />
 
       {/* Anggaran Bulanan */}
