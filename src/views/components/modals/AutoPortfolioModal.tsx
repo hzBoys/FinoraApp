@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -27,13 +28,27 @@ const PILLAR_OPTIONS: { key: AccountType; label: string }[] = [
   { key: 'investasi', label: 'Investasi' },
 ];
 
-const QUICK_ACCOUNT_PRESETS: { name: string; tipe: AccountType }[] = [
-  { name: 'BCA', tipe: 'bank' },
-  { name: 'Mandiri', tipe: 'bank' },
-  { name: 'GoPay', tipe: 'ewallet' },
-  { name: 'OVO', tipe: 'ewallet' },
-  { name: 'Bibit', tipe: 'investasi' },
+const QUICK_ACCOUNT_PRESETS: { name: string; tipe: AccountType; group: string }[] = [
+  // Bank
+  { name: 'BCA', tipe: 'bank', group: 'Bank' },
+  { name: 'Mandiri', tipe: 'bank', group: 'Bank' },
+  { name: 'BRI', tipe: 'bank', group: 'Bank' },
+  { name: 'BNI', tipe: 'bank', group: 'Bank' },
+  { name: 'CIMB', tipe: 'bank', group: 'Bank' },
+  { name: 'BTN', tipe: 'bank', group: 'Bank' },
+  // E-Wallet
+  { name: 'GoPay', tipe: 'ewallet', group: 'E-Wallet' },
+  { name: 'OVO', tipe: 'ewallet', group: 'E-Wallet' },
+  { name: 'DANA', tipe: 'ewallet', group: 'E-Wallet' },
+  { name: 'ShopeePay', tipe: 'ewallet', group: 'E-Wallet' },
+  { name: 'LinkAja', tipe: 'ewallet', group: 'E-Wallet' },
+  // Investasi
+  { name: 'Bibit', tipe: 'investasi', group: 'Investasi' },
+  { name: 'Ajaib', tipe: 'investasi', group: 'Investasi' },
+  { name: 'Bareksa', tipe: 'investasi', group: 'Investasi' },
 ];
+
+const PRESET_GROUPS = ['Bank', 'E-Wallet', 'Investasi'] as const;
 
 type AutoPortfolioModalProps = {
   visible: boolean;
@@ -106,7 +121,12 @@ export const AutoPortfolioModal: React.FC<AutoPortfolioModalProps> = ({
   };
 
   const handleSave = () => {
-    const cleanName = namaAkun.trim() || (tipe === 'ewallet' ? 'E-Wallet' : tipe === 'investasi' ? 'Investasi' : 'Bank');
+    const cleanName = namaAkun.trim();
+    const GENERIC = ['bank', 'ewallet', 'e-wallet', 'investasi'];
+    if (!cleanName || GENERIC.includes(cleanName.toLowerCase())) {
+      Alert.alert('Nama Akun Tidak Valid', 'Gunakan nama spesifik, contoh: BCA, GoPay, Bibit.');
+      return;
+    }
     const num = parseRupiahInput(saldoStr);
     onConfirmBalance(cleanName, tipe, Math.max(0, num));
   };
@@ -357,7 +377,7 @@ export const AutoPortfolioModal: React.FC<AutoPortfolioModalProps> = ({
                       },
                     ]}
                   >
-                    {accounts.map((acc, idx) => {
+                    {accounts.filter(acc => !['bank', 'ewallet', 'e-wallet', 'investasi'].includes(acc.nama_akun.trim().toLowerCase())).map((acc, idx, arr) => {
                       const isSelected =
                         acc.nama_akun.trim().toLowerCase() === namaAkun.trim().toLowerCase();
                       return (
@@ -365,7 +385,7 @@ export const AutoPortfolioModal: React.FC<AutoPortfolioModalProps> = ({
                           key={String(acc.account_id)}
                           style={[
                             styles.accountRow,
-                            idx < accounts.length - 1 && {
+                            idx < arr.length - 1 && {
                               borderBottomWidth: 1,
                               borderBottomColor: colors.border,
                             },
@@ -405,52 +425,45 @@ export const AutoPortfolioModal: React.FC<AutoPortfolioModalProps> = ({
               <Text style={[styles.label, { color: colors.textSecondary }]}>
                 Pilih Cepat Penyedia Akun
               </Text>
-              <View style={styles.catGrid}>
-                {QUICK_ACCOUNT_PRESETS.map((preset) => {
-                  const active =
-                    namaAkun.trim().toLowerCase() === preset.name.toLowerCase();
-                  return (
-                    <TouchableOpacity
-                      key={preset.name}
-                      style={[
-                        styles.catChip,
-                        {
-                          backgroundColor: active
-                            ? colors.isDark
-                              ? '#2D6A4F'
-                              : colors.primary
-                            : colors.isDark
-                            ? '#242426'
-                            : colors.surface,
-                          borderColor: active
-                            ? colors.isDark
-                              ? colors.secondary
-                              : colors.primary
-                            : colors.border,
-                        },
-                      ]}
-                      onPress={() => handleSelectExistingOrPreset(preset.name, preset.tipe)}
-                      activeOpacity={0.75}
-                    >
-                      <CategoryIconBadge
-                        categoryOrType={preset.name}
-                        size={20}
-                        iconSize={11}
-                        borderRadius={6}
-                      />
-                      <Text
-                        style={[
-                          styles.catChipText,
-                          { color: active ? '#FFFFFF' : colors.textSecondary },
-                          active && { fontFamily: FONT.bold },
-                        ]}
-                      >
-                        {preset.name}
-                      </Text>
-                    </TouchableOpacity>
-                  );
-                })}
-              </View>
+              {PRESET_GROUPS.map((group) => (
+                <View key={group} style={{ marginBottom: 8 }}>
+                  <Text style={[styles.presetGroupLabel, { color: colors.textMuted }]}>{group}</Text>
+                  <View style={styles.catGrid}>
+                    {QUICK_ACCOUNT_PRESETS.filter((p) => p.group === group).map((preset) => {
+                      const active = namaAkun.trim().toLowerCase() === preset.name.toLowerCase();
+                      return (
+                        <TouchableOpacity
+                          key={preset.name}
+                          style={[
+                            styles.catChip,
+                            {
+                              backgroundColor: active
+                                ? colors.isDark ? '#2D6A4F' : colors.primary
+                                : colors.isDark ? '#242426' : colors.surface,
+                              borderColor: active
+                                ? colors.isDark ? colors.secondary : colors.primary
+                                : colors.border,
+                            },
+                          ]}
+                          onPress={() => handleSelectExistingOrPreset(preset.name, preset.tipe)}
+                          activeOpacity={0.75}
+                        >
+                          <CategoryIconBadge categoryOrType={preset.name} size={20} iconSize={11} borderRadius={6} />
+                          <Text
+                            style={[
+                              styles.catChipText,
+                              { color: active ? '#FFFFFF' : colors.textSecondary },
+                              active && { fontFamily: FONT.bold },
+                            ]}
+                          >
+                            {preset.name}
+                          </Text>
+                        </TouchableOpacity>
+                      );
+                    })}
+                  </View>
+                </View>
+              ))}
 
               <Text style={[styles.label, { color: colors.textSecondary }]}>
                 Nama Akun (Bank / E-Wallet / Investasi) *
@@ -816,6 +829,15 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     flexWrap: 'wrap',
     gap: 8,
+    marginTop: 2,
+  },
+  presetGroupLabel: {
+    fontFamily: FONT.semiBold,
+    fontSize: 11,
+    fontWeight: '600',
+    letterSpacing: 0.5,
+    textTransform: 'uppercase',
+    marginBottom: 6,
     marginTop: 2,
   },
   catChip: {
