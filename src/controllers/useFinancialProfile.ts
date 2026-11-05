@@ -53,7 +53,6 @@ export function useFinancialProfile(userId?: string | number): UseFinancialProfi
   }, [resolvedUserId]);
 
   useEffect(() => {
-    setProfile(null);
     load();
   }, [load]);
 
