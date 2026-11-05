@@ -6,7 +6,7 @@
  * Step 3: Goals (optional at P0)
  */
 
-import React, { useEffect, useState } from 'react';
+import React, { useState } from 'react';
 import {
   KeyboardAvoidingView,
   Modal,
@@ -69,63 +69,49 @@ export const FinancialProfileModal: React.FC<FinancialProfileModalProps> = ({
 }) => {
   const { colors, isDark } = useThemeContext();
 
-  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(1);
+  const [activeStep, setActiveStep] = useState<1 | 2 | 3>(
+    currentProfile?.profile_step_completed === 1
+      ? 2
+      : currentProfile?.profile_step_completed === 2
+      ? 3
+      : 1
+  );
   const [error, setError] = useState('');
 
-  // Step 1 state
-  const [employmentStatus, setEmploymentStatus] = useState<EmploymentStatus>('lainnya');
-  const [incomeStr, setIncomeStr] = useState('');
-  const [incomeStability, setIncomeStability] = useState<IncomeStability | null>(null);
+  // Initialize once per modal mount. App unmounts this component when closed.
+  const [employmentStatus, setEmploymentStatus] = useState<EmploymentStatus>(
+    currentProfile?.employment_status ?? 'lainnya'
+  );
+  const [incomeStr, setIncomeStr] = useState(
+    currentProfile?.monthly_income ? formatRupiahInput(currentProfile.monthly_income) : ''
+  );
+  const [incomeStability, setIncomeStability] = useState<IncomeStability | null>(
+    currentProfile?.income_stability ?? null
+  );
 
-  // Step 2 state
-  const [essentialExpStr, setEssentialExpStr] = useState('');
-  const [debtStr, setDebtStr] = useState('');
-  const [emergencyFundStr, setEmergencyFundStr] = useState('');
-  const [dependents, setDependents] = useState(0);
+  const [essentialExpStr, setEssentialExpStr] = useState(
+    currentProfile?.monthly_essential_expenses
+      ? formatRupiahInput(currentProfile.monthly_essential_expenses)
+      : ''
+  );
+  const [debtStr, setDebtStr] = useState(
+    currentProfile?.monthly_debt_payments
+      ? formatRupiahInput(currentProfile.monthly_debt_payments)
+      : ''
+  );
+  const [emergencyFundStr, setEmergencyFundStr] = useState(
+    currentProfile?.emergency_fund ? formatRupiahInput(currentProfile.emergency_fund) : ''
+  );
+  const [dependents, setDependents] = useState(currentProfile?.dependents ?? 0);
 
-  // Step 3 state
-  const [primaryGoal, setPrimaryGoal] = useState<string | null>(null);
-  const [goalAllocStr, setGoalAllocStr] = useState('');
-
-  // Sync from currentProfile when modal opens
-  useEffect(() => {
-    if (!visible) return;
-    setError('');
-    setActiveStep(
-      currentProfile?.profile_step_completed === 0 ? 1
-        : currentProfile?.profile_step_completed === 1 ? 2
-        : currentProfile?.profile_step_completed === 2 ? 3
-        : 1
-    );
-
-    setEmploymentStatus(currentProfile?.employment_status ?? 'lainnya');
-    setIncomeStr(
-      currentProfile?.monthly_income ? formatRupiahInput(currentProfile.monthly_income) : ''
-    );
-    setIncomeStability(currentProfile?.income_stability ?? null);
-
-    setEssentialExpStr(
-      currentProfile?.monthly_essential_expenses
-        ? formatRupiahInput(currentProfile.monthly_essential_expenses)
-        : ''
-    );
-    setDebtStr(
-      currentProfile?.monthly_debt_payments
-        ? formatRupiahInput(currentProfile.monthly_debt_payments)
-        : ''
-    );
-    setEmergencyFundStr(
-      currentProfile?.emergency_fund ? formatRupiahInput(currentProfile.emergency_fund) : ''
-    );
-    setDependents(currentProfile?.dependents ?? 0);
-
-    setPrimaryGoal(currentProfile?.primary_goal ?? null);
-    setGoalAllocStr(
-      currentProfile?.goal_monthly_allocation
-        ? formatRupiahInput(currentProfile.goal_monthly_allocation)
-        : ''
-    );
-  }, [visible, currentProfile]);
+  const [primaryGoal, setPrimaryGoal] = useState<string | null>(
+    currentProfile?.primary_goal ?? null
+  );
+  const [goalAllocStr, setGoalAllocStr] = useState(
+    currentProfile?.goal_monthly_allocation
+      ? formatRupiahInput(currentProfile.goal_monthly_allocation)
+      : ''
+  );
 
   const handleSaveStep1 = async () => {
     setError('');

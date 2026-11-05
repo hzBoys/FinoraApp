@@ -509,16 +509,18 @@ function MainApp() {
       />
 
       {/* 7. Modal Profil Finansial */}
-      <FinancialProfileModal
-        visible={isFinancialProfileOpen}
-        currentProfile={financialProfile.profile}
-        isSaving={financialProfile.isLoading}
-        onSaveStep={async (updates) => {
-          await financialProfile.saveProfile(updates);
-        }}
-        onClose={() => setIsFinancialProfileOpen(false)}
-        bottomSafeInset={insets.bottom}
-      />
+      {isFinancialProfileOpen && (
+        <FinancialProfileModal
+          visible
+          currentProfile={financialProfile.profile}
+          isSaving={financialProfile.isLoading}
+          onSaveStep={async (updates) => {
+            await financialProfile.saveProfile(updates);
+          }}
+          onClose={() => setIsFinancialProfileOpen(false)}
+          bottomSafeInset={insets.bottom}
+        />
+      )}
 
       {/* Bottom Navigation Tab Bar */}
       <BottomTabBar

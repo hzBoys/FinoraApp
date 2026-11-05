@@ -53,7 +53,10 @@ export function useFinancialProfile(userId?: string | number): UseFinancialProfi
   }, [resolvedUserId]);
 
   useEffect(() => {
-    load();
+    const timer = setTimeout(() => {
+      void load();
+    }, 0);
+    return () => clearTimeout(timer);
   }, [load]);
 
   const saveProfile = useCallback(
