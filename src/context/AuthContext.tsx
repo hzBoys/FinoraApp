@@ -22,7 +22,9 @@ type AuthContextType = {
     otp: string,
     newPass: string
   ) => Promise<{ success: boolean; message: string }>;
-  updateCurrentUser: (data: Partial<UserProfile>) => Promise<void>;
+  updateCurrentUser: (
+    data: Partial<UserProfile>
+  ) => Promise<{ success: boolean; message?: string }>;
 };
 
 const AuthContext = createContext<AuthContextType>({
@@ -34,7 +36,7 @@ const AuthContext = createContext<AuthContextType>({
   logout: async () => {},
   resetPassword: async () => ({ success: false, message: '' }),
   verifyResetOtp: async () => ({ success: false, message: '' }),
-  updateCurrentUser: async () => {},
+  updateCurrentUser: async () => ({ success: false }),
 });
 
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -392,7 +394,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   };
 
-  const updateCurrentUser = async (data: Partial<UserProfile>) => {
+  const updateCurrentUser = async (
+    data: Partial<UserProfile>
+  ): Promise<{ success: boolean; message?: string }> => {
+    const prevUser = currentUser;
     const prevEmail = currentUser.email;
     setCurrentUser((prev) => ({ ...prev, ...data }));
 
@@ -409,8 +414,17 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           console.warn('Supabase auth email sync warning:', authEmailErr.message);
         }
       }
-      await profileService.updateProfile(currentUser.id, data);
+      const res = await profileService.updateProfile(currentUser.id, data);
+      if (!res.success) {
+        setCurrentUser(prevUser);
+        return {
+          success: false,
+          message: res.error || 'Gagal menyimpan perubahan profil ke server.',
+        };
+      }
     }
+
+    return { success: true };
   };
 
   return (

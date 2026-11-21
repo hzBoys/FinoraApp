@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { INITIAL_ACCOUNTS } from '../models/mockData';
 import { Account, AccountType } from '../models/types';
 import {
@@ -10,6 +10,14 @@ import { accountService } from '../services/db/accountService';
 
 export function usePortfolio(userId?: string | number) {
   const [accounts, setAccounts] = useState<Account[]>(INITIAL_ACCOUNTS);
+
+  const refreshAccounts = useCallback(async () => {
+    if (!userId || typeof userId !== 'string' || !userId.includes('-')) return;
+    const remote = await accountService.fetchAccounts(userId);
+    if (remote !== null && remote.length > 0) {
+      setAccounts(remote);
+    }
+  }, [userId]);
 
   // Sync from Supabase if userId is provided, and reset cleanly on logout/switch
   useEffect(() => {
@@ -66,6 +74,33 @@ export function usePortfolio(userId?: string | number) {
     return null;
   };
 
+  const removeAccount = async (
+    accountId: number | string
+  ): Promise<{ deleted: boolean; error?: string }> => {
+    if (accounts.length <= 1) {
+      return {
+        deleted: false,
+        error: 'Minimal harus ada 1 akun keuangan aktif pada portofolio Anda.',
+      };
+    }
+
+    let previousSnapshot: Account[] = [];
+    setAccounts((prev) => {
+      previousSnapshot = prev;
+      return prev.filter((a) => a.account_id !== accountId);
+    });
+
+    if (userId && typeof userId === 'string' && userId.includes('-')) {
+      const res = await accountService.deleteAccount(accountId);
+      if (!res.deleted) {
+        setAccounts(previousSnapshot);
+      }
+      return res;
+    }
+
+    return { deleted: true };
+  };
+
   const syncAccountBalanceLocal = (accountId: number | string, exactBalance: number) => {
     const todayIso = new Date().toISOString().split('T')[0];
     setAccounts((prev) =>
@@ -117,7 +152,9 @@ export function usePortfolio(userId?: string | number) {
     totalBalance,
     pillars,
     updateBalance,
+    removeAccount,
     syncAccountBalanceLocal,
     deductAccountBalance,
+    refreshAccounts,
   };
 }

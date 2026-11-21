@@ -9,11 +9,11 @@ declare const Deno: {
 };
 
 const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
-const GEMINI_API_REVISION = '2026-05-20';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
 
 let edgeRoundRobinCursor = 0;
@@ -52,6 +52,40 @@ const BALANCE_SCHEMA = {
   required: ['is_valid_balance', 'nama_akun', 'tipe', 'saldo', 'ringkasan_ocr'],
 };
 
+function extractJsonText(data: any): string {
+  let raw = '';
+  if (typeof data?.output_text === 'string' && data.output_text.trim().length > 0) {
+    raw = data.output_text.trim();
+  } else if (Array.isArray(data?.steps)) {
+    const modelStep = [...data.steps].reverse().find((s: any) => s?.type === 'model_output');
+    raw =
+      modelStep?.content
+        ?.filter((c: any) => c?.type === 'text' && typeof c.text === 'string')
+        .map((c: any) => c.text)
+        .join('')
+        .trim() || '';
+  }
+  const fenceMatch = raw.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenceMatch ? fenceMatch[1].trim() : raw;
+}
+
+async function verifySupabaseJwt(authHeader: string): Promise<boolean> {
+  const supabaseUrl = Deno.env.get('SUPABASE_URL');
+  const anonKey = Deno.env.get('SUPABASE_ANON_KEY');
+  if (!supabaseUrl || !anonKey) return true;
+  try {
+    const res = await fetch(`${supabaseUrl}/auth/v1/user`, {
+      headers: {
+        Authorization: authHeader,
+        apikey: anonKey,
+      },
+    });
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 Deno.serve(async (req: Request) => {
   if (req.method === 'OPTIONS') {
     return new Response('ok', { headers: corsHeaders });
@@ -59,8 +93,16 @@ Deno.serve(async (req: Request) => {
 
   try {
     const authHeader = req.headers.get('Authorization');
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: 'Missing Authorization header' }), {
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+      return new Response(JSON.stringify({ error: 'Missing or invalid Authorization header' }), {
+        status: 401,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    const isAuthenticated = await verifySupabaseJwt(authHeader);
+    if (!isAuthenticated) {
+      return new Response(JSON.stringify({ error: 'Unauthorized: invalid or expired session token' }), {
         status: 401,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -70,6 +112,15 @@ Deno.serve(async (req: Request) => {
     if (!image_base64 || typeof image_base64 !== 'string') {
       return new Response(JSON.stringify({ error: 'image_base64 is required' }), {
         status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
+    // Validate <= 5 MB decoded image limit (SRS ER-1.1)
+    const approxBytes = Math.floor((image_base64.length * 3) / 4);
+    if (approxBytes > 5_242_880) {
+      return new Response(JSON.stringify({ error: 'File melebihi batas maksimal 5 MB' }), {
+        status: 413,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
@@ -101,71 +152,69 @@ Deno.serve(async (req: Request) => {
 
     for (let offset = 0; offset < keys.length; offset++) {
       const idx = (startIdx + offset) % keys.length;
-      const res = await fetch(GEMINI_INTERACTIONS_URL, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Api-Revision': GEMINI_API_REVISION,
-          'x-goog-api-key': keys[idx],
-        },
-        body: JSON.stringify({
-          model,
-          store: false,
-          input: [
-            {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 45_000);
+      try {
+        const res = await fetch(GEMINI_INTERACTIONS_URL, {
+          method: 'POST',
+          signal: controller.signal,
+          headers: {
+            'Content-Type': 'application/json',
+            'x-goog-api-key': keys[idx],
+          },
+          body: JSON.stringify({
+            model,
+            store: false,
+            input: [
+              { type: 'text', text: promptText },
+              { type: 'image', data: image_base64, mime_type },
+            ],
+            generation_config: {
+              thinking_level: 'minimal',
+              temperature: 0.1,
+            },
+            response_format: {
               type: 'text',
-              text: promptText,
+              mime_type: 'application/json',
+              schema: isBalanceScan ? BALANCE_SCHEMA : RECEIPT_SCHEMA,
             },
-            {
-              type: 'image',
-              data: image_base64,
-              mime_type,
-            },
-          ],
-          generation_config: {
-            thinking_level: 'minimal',
-            temperature: 0.1,
-          },
-          response_format: {
-            type: 'text',
-            mime_type: 'application/json',
-            schema: isBalanceScan ? BALANCE_SCHEMA : RECEIPT_SCHEMA,
-          },
-        }),
-      });
+          }),
+        });
 
-      if (!res.ok) {
-        lastStatus = res.status;
-        lastErr = await res.text().catch(() => 'Upstream error');
-        if (res.status === 429 || res.status === 503 || res.status === 500) {
+        if (!res.ok) {
+          lastStatus = res.status;
+          lastErr = await res.text().catch(() => 'Upstream error');
+          if ([401, 403, 429, 500, 503].includes(res.status)) {
+            continue;
+          }
+          break;
+        }
+
+        const data = await res.json();
+        const text = extractJsonText(data);
+        if (!text) {
+          lastErr = 'Empty model output';
           continue;
         }
-        break;
+
+        return new Response(
+          JSON.stringify({
+            jenis_scan: isBalanceScan ? 'saldo' : 'struk',
+            result: JSON.parse(text),
+            processing_time_ms: Date.now() - startedAt,
+            key_index_used: idx + 1,
+            model,
+          }),
+          {
+            status: 200,
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+          }
+        );
+      } catch (err: any) {
+        lastErr = err?.name === 'AbortError' ? 'Gemini upstream timeout' : err?.message || 'Fetch error';
+      } finally {
+        clearTimeout(timeoutId);
       }
-
-      const data = await res.json();
-      const modelStep = Array.isArray(data?.steps)
-        ? [...data.steps].reverse().find((s: any) => s?.type === 'model_output')
-        : null;
-      const text =
-        modelStep?.content
-          ?.filter((c: any) => c?.type === 'text')
-          .map((c: any) => c.text)
-          .join('') || '';
-
-      return new Response(
-        JSON.stringify({
-          jenis_scan: isBalanceScan ? 'saldo' : 'struk',
-          result: JSON.parse(text),
-          processing_time_ms: Date.now() - startedAt,
-          key_index_used: idx + 1,
-          model,
-        }),
-        {
-          status: 200,
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-        }
-      );
     }
 
     return new Response(JSON.stringify({ error: lastErr }), {

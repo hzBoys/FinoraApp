@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemeContext } from '../../context/ThemeContext';
 import { LAYOUT } from '../../constants/theme';
 import { FONT } from '../../constants/typography';
@@ -9,6 +9,7 @@ import { BalanceHeroCard } from '../components/cards/BalanceHeroCard';
 import { BudgetProgressCard } from '../components/cards/BudgetProgressCard';
 import { CashFlowCard } from '../components/cards/CashFlowCard';
 import { TransactionRowItem } from '../components/transactions/TransactionRowItem';
+import { getCurrentPeriodLabel } from '../../utils/date';
 
 type HomeScreenProps = {
   totalBalance: number;
@@ -29,7 +30,10 @@ type HomeScreenProps = {
   onOpenAddModal: () => void;
   onScanReceipt: () => void;
   onOpenAutoPortfolio?: () => void;
+  onEditTransaction?: (tx: Tx) => void;
   onDeleteTransaction?: (tx: Tx) => void;
+  isRefreshing?: boolean;
+  onRefresh?: () => void;
   bottomSafeInset?: number;
 };
 
@@ -52,7 +56,10 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
   onOpenAddModal,
   onScanReceipt,
   onOpenAutoPortfolio,
+  onEditTransaction,
   onDeleteTransaction,
+  isRefreshing = false,
+  onRefresh,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
   const { colors } = useThemeContext();
@@ -66,6 +73,16 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
           backgroundColor: colors.surface,
         },
       ]}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.secondary}
+            colors={[colors.primary, colors.secondary]}
+          />
+        ) : undefined
+      }
       showsVerticalScrollIndicator={false}
     >
       {/* Hero Balance Card */}
@@ -109,7 +126,12 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
       </View>
 
       {/* Arus Kas Bulan Ini */}
-      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>Arus Kas Bulan Ini</Text>
+      <Text style={[styles.sectionTitle, { color: colors.textSecondary }]}>
+        Arus Kas{' '}
+        <Text style={{ color: colors.secondary, fontFamily: FONT.bold, fontWeight: '700' }}>
+          {getCurrentPeriodLabel()}
+        </Text>
+      </Text>
       <CashFlowCard totalIn={totalIn} totalOut={totalOut} />
 
       {/* Anggaran Bulanan */}
@@ -146,6 +168,7 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({
               key={tx.id}
               tx={tx}
               isLast={i === arr.length - 1}
+              onEdit={onEditTransaction}
               onDelete={onDeleteTransaction}
             />
           ))

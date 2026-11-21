@@ -21,7 +21,9 @@ type EditProfileModalProps = {
   visible: boolean;
   user: UserProfile;
   onClose: () => void;
-  onSave: (data: Partial<UserProfile>) => void;
+  onSave: (
+    data: Partial<UserProfile>
+  ) => Promise<{ success: boolean; message?: string } | void> | void;
   onPickAvatar: () => void;
   bottomSafeInset?: number;
 };
@@ -47,7 +49,7 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
     setError('');
   }, [user, visible]);
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!nama.trim()) {
       setError('Nama lengkap tidak boleh kosong.');
       return;
@@ -61,11 +63,15 @@ export const EditProfileModal: React.FC<EditProfileModalProps> = ({
       return;
     }
 
-    onSave({
+    const res = await onSave({
       nama: nama.trim(),
       username: username.trim(),
       email: email.trim(),
     });
+    if (res && typeof res === 'object' && res.success === false) {
+      setError(res.message || 'Gagal memperbarui profil.');
+      return;
+    }
     onClose();
   };
 

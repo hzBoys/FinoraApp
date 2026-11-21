@@ -94,6 +94,19 @@ export async function generateSmartAdvisorNarrative(
       inputParts: [{ type: 'text', text: deterministicPrompt }],
       schema: ADVISOR_SCHEMA,
       temperature: 0.25,
+      edgeHint: {
+        functionName: 'ai-smart-advisor',
+        body: {
+          periode,
+          total_income: analysis.totalIncome,
+          total_expense: analysis.totalExpense,
+          pct_kebutuhan: analysis.pctKebutuhan,
+          pct_gaya_hidup: analysis.pctGayaHidup,
+          pct_tabungan: analysis.pctTabungan,
+          lifestyle_reduction_needed: analysis.lifestyleReductionNeeded,
+          top_categories: topCatsSummary || 'Belum ada pengeluaran kategori',
+        },
+      },
     });
 
     const text = String(interaction.data?.isi_saran || '').trim();

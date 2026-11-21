@@ -1,5 +1,5 @@
 import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
+import { RefreshControl, ScrollView, StyleSheet, Text, TouchableOpacity, View } from 'react-native';
 import { useThemeContext } from '../../context/ThemeContext';
 import { LAYOUT } from '../../constants/theme';
 import { FONT } from '../../constants/typography';
@@ -30,6 +30,8 @@ type BudgetScreenProps = {
   isGeneratingAdvice?: boolean;
   onRefreshAdvisor?: () => void;
   onOpenSetBudget?: () => void;
+  isRefreshing?: boolean;
+  onRefresh?: () => void;
   bottomSafeInset?: number;
 };
 
@@ -47,6 +49,8 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({
   isGeneratingAdvice = false,
   onRefreshAdvisor,
   onOpenSetBudget,
+  isRefreshing = false,
+  onRefresh,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
   const { colors } = useThemeContext();
@@ -60,6 +64,16 @@ export const BudgetScreen: React.FC<BudgetScreenProps> = ({
           backgroundColor: colors.surface,
         },
       ]}
+      refreshControl={
+        onRefresh ? (
+          <RefreshControl
+            refreshing={isRefreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.secondary}
+            colors={[colors.primary, colors.secondary]}
+          />
+        ) : undefined
+      }
       showsVerticalScrollIndicator={false}
     >
       {/* Header Info */}

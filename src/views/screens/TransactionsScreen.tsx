@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import {
+  RefreshControl,
   ScrollView,
   StyleSheet,
   Text,
@@ -27,7 +28,10 @@ type TransactionsScreenProps = {
   onSelectCat: (c: string) => void;
   totalIn: number;
   totalOut: number;
+  onEditTransaction?: (tx: Tx) => void;
   onDeleteTransaction?: (tx: Tx) => void;
+  isRefreshing?: boolean;
+  onRefresh?: () => void;
   bottomSafeInset?: number;
 };
 
@@ -39,7 +43,10 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
   onSelectCat,
   totalIn: _totalIn,
   totalOut: _totalOut,
+  onEditTransaction,
   onDeleteTransaction,
+  isRefreshing = false,
+  onRefresh,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
   const { colors } = useThemeContext();
@@ -242,6 +249,16 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
           styles.listContent,
           { paddingBottom: LAYOUT.tabHeight + bottomSafeInset + 16 },
         ]}
+        refreshControl={
+          onRefresh ? (
+            <RefreshControl
+              refreshing={isRefreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.secondary}
+              colors={[colors.primary, colors.secondary]}
+            />
+          ) : undefined
+        }
         showsVerticalScrollIndicator={false}
       >
         {dateFilteredTransactions.length === 0 ? (
@@ -258,6 +275,7 @@ export const TransactionsScreen: React.FC<TransactionsScreenProps> = ({
                 key={tx.id}
                 tx={tx}
                 isLast={i === dateFilteredTransactions.length - 1}
+                onEdit={onEditTransaction}
                 onDelete={onDeleteTransaction}
               />
             ))}

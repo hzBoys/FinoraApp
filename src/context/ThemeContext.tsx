@@ -1,7 +1,10 @@
-import React, { createContext, useContext, useMemo, useState } from 'react';
+import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
 import { useColorScheme } from 'react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ColorTheme, getThemeColors, LIGHT_COLORS } from '../constants/theme';
 import { ThemeMode } from '../models/types';
+
+const THEME_STORAGE_KEY = 'finora_theme_mode';
 
 type ThemeContextType = {
   themeMode: ThemeMode;
@@ -19,7 +22,26 @@ const ThemeContext = createContext<ThemeContextType>({
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const systemScheme = useColorScheme();
-  const [themeMode, setThemeMode] = useState<ThemeMode>('light');
+  const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
+
+  useEffect(() => {
+    let isMounted = true;
+    AsyncStorage.getItem(THEME_STORAGE_KEY)
+      .then((saved) => {
+        if (isMounted && (saved === 'light' || saved === 'dark' || saved === 'system')) {
+          setThemeModeState(saved);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      isMounted = false;
+    };
+  }, []);
+
+  const setThemeMode = (mode: ThemeMode) => {
+    setThemeModeState(mode);
+    AsyncStorage.setItem(THEME_STORAGE_KEY, mode).catch(() => {});
+  };
 
   const isDark = useMemo(() => {
     if (themeMode === 'system') {

@@ -4,6 +4,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { Tx } from '../models/types';
 import {
   extractMockReceipt,
+  normalizeCategoryName,
   OCRReceiptResult,
   validateReceiptFile,
 } from './services/magicReceiptService';
@@ -13,15 +14,26 @@ import {
 } from '../services/ai/geminiReceiptService';
 import { resolveImagePayload, storageService } from '../services/db/storageService';
 import { scanService } from '../services/db/scanService';
+import { formatToDisplay, isDateInCurrentPeriod, parseIsoOrDisplayDate } from '../utils/date';
 
 export type MagicReceiptStep = 'idle' | 'processing' | 'review';
 
+export type SaveReceiptTxOutcome = {
+  success: boolean;
+  transactionId: string | null;
+  error?: string;
+};
+
 export function useMagicReceipt(
-  onTransactionSaved: (tx: Tx) => Promise<string | null | void> | void,
+  onTransactionSaved: (
+    tx: Tx,
+    scanId?: string | null
+  ) => Promise<SaveReceiptTxOutcome>,
   userId?: string | number
 ) {
   const [isOpen, setIsOpen] = useState(false);
   const [step, setStep] = useState<MagicReceiptStep>('idle');
+  const [isSaving, setIsSaving] = useState(false);
   const [receiptImageUri, setReceiptImageUri] = useState<string | null>(null);
   const [extractedData, setExtractedData] = useState<OCRReceiptResult | null>(null);
   const [ocrProgress, setOcrProgress] = useState(0);
@@ -39,6 +51,7 @@ export function useMagicReceipt(
     clearProgressTimer();
     setIsOpen(false);
     setStep('idle');
+    setIsSaving(false);
     setReceiptImageUri(null);
     setExtractedData(null);
     setOcrProgress(0);
@@ -52,7 +65,8 @@ export function useMagicReceipt(
     providedFileSize?: number | null
   ) => {
     const isRemoteUser = typeof userId === 'string' && userId.includes('-');
-    const mimeCandidate = providedMimeType || (imageUri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
+    const mimeCandidate =
+      providedMimeType || (imageUri.toLowerCase().endsWith('.png') ? 'image/png' : 'image/jpeg');
 
     if (providedFileSize && providedFileSize > 0) {
       const check = validateReceiptFile(providedFileSize, mimeCandidate);
@@ -102,7 +116,7 @@ export function useMagicReceipt(
         throw new Error('Konfigurasi EXPO_PUBLIC_GEMINI_API_KEYS belum tersedia di file .env.');
       }
 
-      // Run Gemini OCR (Round-Robin 14 Keys) + Cloud Storage upload in parallel for < 3s latency
+      // Run Gemini OCR (Round-Robin 14 Keys / Edge Function) + Cloud Storage upload in parallel
       const [ocrOutcome, uploadOutcome] = await Promise.allSettled([
         extractReceiptWithGemini(imagePayload.base64, imagePayload.mimeType),
         isRemoteUser
@@ -153,6 +167,7 @@ export function useMagicReceipt(
         nominal: aiResult.nominal,
         tanggal: aiResult.tanggal,
         metode_bayar: aiResult.metode_bayar,
+        detectedAccountHint: aiResult.detectedAccountHint,
         kategori: aiResult.kategori,
         ringkasan_ocr: aiResult.ringkasan_ocr,
         processingTimeMs: aiResult.processingTimeMs,
@@ -239,17 +254,28 @@ export function useMagicReceipt(
     tanggal: string,
     metodeBayar: string,
     accountId: number | string = 1
-  ) => {
+  ): Promise<boolean> => {
+    if (isSaving) return false;
+
+    const cleanMerchant = merchant.trim() || 'Struk Belanja';
+    const safeNominal = Math.round(Math.abs(nominal));
+    if (safeNominal <= 0) {
+      Alert.alert('Nominal Tidak Valid', 'Masukkan nominal transaksi lebih besar dari Rp0.');
+      return false;
+    }
+
+    const parsedDate = parseIsoOrDisplayDate(tanggal);
+    const canonicalCat = normalizeCategoryName(kategori, false);
     const scanIdToLink = lastScanIdRef.current;
 
     const newTx: Tx = {
       id: Date.now(),
-      name: merchant,
-      amount: nominal,
-      cat: kategori,
-      date: tanggal,
+      name: cleanMerchant,
+      amount: safeNominal,
+      cat: canonicalCat,
+      date: parsedDate.isoDate,
       income: false,
-      merchant,
+      merchant: cleanMerchant,
       metode_bayar: metodeBayar,
       account_id: accountId,
       catatan: extractedData?.ringkasan_ocr
@@ -257,17 +283,43 @@ export function useMagicReceipt(
         : undefined,
     };
 
-    reset();
-    const savedTxId = await onTransactionSaved(newTx);
+    setIsSaving(true);
+    try {
+      const outcome = await onTransactionSaved(newTx, scanIdToLink);
 
-    if (scanIdToLink && typeof savedTxId === 'string' && savedTxId.includes('-')) {
-      scanService.linkScanToTransaction(scanIdToLink, savedTxId);
+      if (!outcome.success) {
+        Alert.alert(
+          'Gagal Menyimpan ke Dashboard',
+          outcome.error ||
+            'Transaksi belum tersimpan ke server Supabase. Periksa koneksi internet Anda lalu coba tekan Konfirmasi & Simpan lagi.'
+        );
+        return false;
+      }
+
+      // Safety-belt link in case DB was still on Phase 1 RPC signature
+      if (
+        scanIdToLink &&
+        typeof outcome.transactionId === 'string' &&
+        outcome.transactionId.includes('-')
+      ) {
+        await scanService.linkScanToTransaction(scanIdToLink, outcome.transactionId);
+      }
+
+      const inCurrentMonth = isDateInCurrentPeriod(parsedDate.isoDate);
+      const displayDate = formatToDisplay(parsedDate.isoDate);
+
+      reset();
+
+      Alert.alert(
+        'Transaksi Berhasil Disimpan',
+        inCurrentMonth
+          ? `Struk dari "${cleanMerchant}" sebesar Rp${safeNominal.toLocaleString('id-ID')} otomatis tercatat ke kategori ${canonicalCat} dan tampil di Beranda.`
+          : `Struk dari "${cleanMerchant}" sebesar Rp${safeNominal.toLocaleString('id-ID')} tersimpan pada tanggal ${displayDate} (di luar bulan berjalan — lihat di tab Transaksi).`
+      );
+      return true;
+    } finally {
+      setIsSaving(false);
     }
-
-    Alert.alert(
-      'Transaksi Berhasil Disimpan',
-      `Struk dari "${merchant}" sebesar Rp${nominal.toLocaleString('id-ID')} otomatis tercatat ke kategori ${kategori}.`
-    );
   };
 
   return {
@@ -275,6 +327,7 @@ export function useMagicReceipt(
     setIsOpen,
     step,
     setStep,
+    isSaving,
     receiptImageUri,
     extractedData,
     ocrProgress,

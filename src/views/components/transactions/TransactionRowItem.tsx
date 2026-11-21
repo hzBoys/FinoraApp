@@ -8,12 +8,14 @@ import { CategoryIconBadge } from '../icons/CategoryIconBadge';
 type TransactionRowItemProps = {
   tx: Tx;
   isLast?: boolean;
+  onEdit?: (tx: Tx) => void;
   onDelete?: (tx: Tx) => void;
 };
 
 export const TransactionRowItem: React.FC<TransactionRowItemProps> = ({
   tx,
   isLast = false,
+  onEdit,
   onDelete,
 }) => {
   const { colors } = useThemeContext();
@@ -62,12 +64,17 @@ export const TransactionRowItem: React.FC<TransactionRowItemProps> = ({
     </View>
   );
 
-  if (!onDelete) {
+  if (!onDelete && !onEdit) {
     return rowContent;
   }
 
   return (
-    <TouchableOpacity onLongPress={handleLongPress} delayLongPress={380} activeOpacity={0.8}>
+    <TouchableOpacity
+      onPress={onEdit ? () => onEdit(tx) : undefined}
+      onLongPress={onDelete ? handleLongPress : undefined}
+      delayLongPress={380}
+      activeOpacity={0.8}
+    >
       {rowContent}
     </TouchableOpacity>
   );

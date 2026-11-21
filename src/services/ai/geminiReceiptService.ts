@@ -1,4 +1,9 @@
-import { autoCategorizeMerchant, OCRReceiptResult } from '../../controllers/services/magicReceiptService';
+import {
+  autoCategorizeMerchant,
+  detectAccountBrandHint,
+  normalizeCategoryName,
+  OCRReceiptResult,
+} from '../../controllers/services/magicReceiptService';
 import { formatToDisplay, getDeviceNow } from '../../utils/date';
 import { cleanBase64String, normalizeImageMimeType } from '../db/storageService';
 import {
@@ -22,7 +27,7 @@ const RECEIPT_SYSTEM_INSTRUCTION = [
   '3. tanggal: Tanggal transaksi pada struk dalam format YYYY-MM-DD. Jika tahun hanya 2 digit (mis. 02/11/26), konversi ke 2026-11-02. Jika tanggal tidak terbaca sama sekali, kembalikan string kosong "".',
   '4. metode_bayar: Petakan metode pembayaran ke salah satu dari 3 pilar Finora: "E-Wallet" (jika tertulis QRIS, GoPay, OVO, DANA, ShopeePay, LinkAja), "Investasi" (jika terkait Bibit, Bareksa, Ajaib, Reksadana, Saham), atau "Bank" (jika Debit, Kartu Kredit, BCA, Mandiri, BRI, BNI, Transfer, VA, atau metode lainnya).',
   '5. kategori: Pilih tepat satu kategori pengeluaran yang paling relevan dari daftar: "Makan", "Transportasi", "Belanja", "Tagihan", atau "Hiburan".',
-  '6. ringkasan_ocr: Ringkasan singkat item atau teks inti yang terbaca pada struk (maksimal 200 karakter).',
+  '6. ringkasan_ocr: Ringkasan singkat item, metode/merek pembayaran (mis. QRIS GoPay / Debit BCA), atau teks inti yang terbaca pada struk (maksimal 200 karakter).',
   '7. is_valid_receipt: Bernilai true jika gambar adalah struk/bukti transaksi/tagihan/pembayaran yang memiliki informasi harga/nominal; false hanya jika gambar sama sekali bukan bukti transaksi.',
 ].join('\n');
 
@@ -86,10 +91,14 @@ function normalizePaymentPillar(rawMethod?: string, rawSummary?: string): 'Bank'
 }
 
 function normalizeCategory(rawCat?: string, merchant?: string, summary?: string): string {
-  if (rawCat && VALID_EXPENSE_CATEGORIES.includes(rawCat as any)) {
-    return rawCat;
+  if (rawCat) {
+    const canonical = normalizeCategoryName(rawCat, false);
+    if (VALID_EXPENSE_CATEGORIES.includes(canonical as any)) {
+      return canonical;
+    }
   }
-  return autoCategorizeMerchant(merchant || '', summary || '');
+  const guessed = autoCategorizeMerchant(merchant || '', summary || '');
+  return VALID_EXPENSE_CATEGORIES.includes(guessed as any) ? guessed : 'Belanja';
 }
 
 export type GeminiReceiptExtractionOutput = OCRReceiptResult & {
@@ -133,6 +142,14 @@ export async function extractReceiptWithGemini(
     ],
     schema: RECEIPT_EXTRACTION_SCHEMA,
     temperature: 0.1,
+    edgeHint: {
+      functionName: 'ai-extract-document',
+      body: {
+        image_base64: cleanBase64,
+        mime_type: normalizedMime,
+        jenis_scan: 'struk',
+      },
+    },
   });
 
   const parsed = interaction.data;
@@ -155,6 +172,7 @@ export async function extractReceiptWithGemini(
   const displayTanggal = rawTanggal ? formatToDisplay(rawTanggal) : today.displayDate;
   const ringkasanOcr = String(parsed.ringkasan_ocr || cleanMerchant).trim().slice(0, 500);
   const metodeBayar = normalizePaymentPillar(parsed.metode_bayar, ringkasanOcr);
+  const detectedAccountHint = detectAccountBrandHint(`${parsed.metode_bayar || ''} ${ringkasanOcr}`);
   const kategori = normalizeCategory(parsed.kategori, cleanMerchant, ringkasanOcr);
 
   return {
@@ -162,6 +180,7 @@ export async function extractReceiptWithGemini(
     nominal: rawNominal,
     tanggal: displayTanggal,
     metode_bayar: metodeBayar,
+    detectedAccountHint,
     kategori,
     ringkasan_ocr: ringkasanOcr,
     processingTimeMs: interaction.processingTimeMs,

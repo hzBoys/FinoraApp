@@ -1,5 +1,6 @@
 import { Tx } from '../../models/types';
 import { getPeriodKeyFromDate } from '../../utils/date';
+import { normalizeCategoryName } from './magicReceiptService';
 
 export type BudgetAllocationAnalysis = {
   totalIncome: number;
@@ -47,11 +48,11 @@ export function analyzeSmartAdvisor(
     .reduce((s, t) => s + t.amount, 0);
 
   const kebutuhanExpenses = scopedTransactions
-    .filter((t) => !t.income && ['Makan', 'Transportasi', 'Tagihan'].includes(t.cat))
+    .filter((t) => !t.income && ['Makan', 'Transportasi', 'Tagihan'].includes(normalizeCategoryName(t.cat, false)))
     .reduce((s, t) => s + t.amount, 0);
 
   const gayaHidupExpenses = scopedTransactions
-    .filter((t) => !t.income && ['Belanja', 'Hiburan'].includes(t.cat))
+    .filter((t) => !t.income && ['Belanja', 'Hiburan'].includes(normalizeCategoryName(t.cat, false)))
     .reduce((s, t) => s + t.amount, 0);
 
   const totalExpense = kebutuhanExpenses + gayaHidupExpenses;

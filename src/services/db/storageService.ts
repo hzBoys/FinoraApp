@@ -165,4 +165,45 @@ export const storageService = {
       return null;
     }
   },
+
+  async getReceiptSignedUrl(fileUrl: string, expiresInSeconds = 3600): Promise<string | null> {
+    if (!isSupabaseConfigured || !fileUrl) return null;
+    const objectPath = fileUrl.startsWith('receipts/')
+      ? fileUrl.slice('receipts/'.length)
+      : fileUrl;
+
+    try {
+      const { data, error } = await supabase.storage
+        .from('receipts')
+        .createSignedUrl(objectPath, expiresInSeconds);
+
+      if (error || !data?.signedUrl) {
+        console.warn('storageService.getReceiptSignedUrl warning:', error?.message);
+        return null;
+      }
+      return data.signedUrl;
+    } catch (err) {
+      console.warn('storageService.getReceiptSignedUrl exception:', err);
+      return null;
+    }
+  },
+
+  async deleteReceiptImage(fileUrl: string): Promise<boolean> {
+    if (!isSupabaseConfigured || !fileUrl) return false;
+    const objectPath = fileUrl.startsWith('receipts/')
+      ? fileUrl.slice('receipts/'.length)
+      : fileUrl;
+
+    try {
+      const { error } = await supabase.storage.from('receipts').remove([objectPath]);
+      if (error) {
+        console.warn('storageService.deleteReceiptImage warning:', error.message);
+        return false;
+      }
+      return true;
+    } catch (err) {
+      console.warn('storageService.deleteReceiptImage exception:', err);
+      return false;
+    }
+  },
 };

@@ -13,6 +13,22 @@ export type CreateScanLogInput = {
   status?: 'pending' | 'success' | 'failed';
 };
 
+export type StoredScanLog = {
+  id: string;
+  user_id: string;
+  transaction_id: string | null;
+  jenis_scan: 'struk' | 'saldo';
+  file_url: string | null;
+  teks_ocr: string | null;
+  merchant_extracted: string | null;
+  nominal_extracted: number | null;
+  kategori_extracted: string | null;
+  metode_extracted: string | null;
+  processing_time_ms: number | null;
+  status: 'pending' | 'success' | 'failed';
+  created_at: string;
+};
+
 export const scanService = {
   async createScanLog(input: CreateScanLogInput): Promise<string | null> {
     if (!isSupabaseConfigured || !input.userId || !input.userId.includes('-')) {
@@ -81,6 +97,45 @@ export const scanService = {
     } catch (err) {
       console.warn('scanService.linkScanToTransaction exception:', err);
       return false;
+    }
+  },
+
+  async fetchScanHistory(userId: string, limit = 20): Promise<StoredScanLog[]> {
+    if (!isSupabaseConfigured || !userId || !userId.includes('-')) {
+      return [];
+    }
+
+    try {
+      const { data, error } = await supabase
+        .from('scan_results')
+        .select('*')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(limit);
+
+      if (error || !data) {
+        if (error) console.warn('scanService.fetchScanHistory warning:', error.message);
+        return [];
+      }
+
+      return data.map((row: any) => ({
+        id: row.id,
+        user_id: row.user_id,
+        transaction_id: row.transaction_id ?? null,
+        jenis_scan: row.jenis_scan,
+        file_url: row.file_url ?? null,
+        teks_ocr: row.teks_ocr ?? null,
+        merchant_extracted: row.merchant_extracted ?? null,
+        nominal_extracted: row.nominal_extracted !== null ? Number(row.nominal_extracted) : null,
+        kategori_extracted: row.kategori_extracted ?? null,
+        metode_extracted: row.metode_extracted ?? null,
+        processing_time_ms: row.processing_time_ms !== null ? Number(row.processing_time_ms) : null,
+        status: row.status ?? 'success',
+        created_at: row.created_at,
+      }));
+    } catch (err) {
+      console.warn('scanService.fetchScanHistory exception:', err);
+      return [];
     }
   },
 };

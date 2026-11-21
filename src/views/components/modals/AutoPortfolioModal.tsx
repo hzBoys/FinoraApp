@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Image,
   KeyboardAvoidingView,
   Modal,
@@ -48,6 +49,7 @@ type AutoPortfolioModalProps = {
   onLaunchCamera: () => void;
   onPickGallery: () => void;
   onConfirmBalance: (namaAkun: string, tipe: AccountType, nominalSaldo: number) => void;
+  onDeleteAccount?: (account: Account) => Promise<{ deleted: boolean; error?: string }> | void;
   bottomSafeInset?: number;
 };
 
@@ -64,6 +66,7 @@ export const AutoPortfolioModal: React.FC<AutoPortfolioModalProps> = ({
   onLaunchCamera,
   onPickGallery,
   onConfirmBalance,
+  onDeleteAccount,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
   const { colors } = useThemeContext();
@@ -113,6 +116,27 @@ export const AutoPortfolioModal: React.FC<AutoPortfolioModalProps> = ({
 
   const getPillarLabel = (t: AccountType) =>
     t === 'ewallet' ? 'E-Wallet' : t === 'investasi' ? 'Investasi' : 'Bank';
+
+  const handleConfirmDeleteAccount = (acc: Account) => {
+    if (!onDeleteAccount || accounts.length <= 1) return;
+    const msg = `Hapus akun "${acc.nama_akun}" (saldo Rp${acc.saldo.toLocaleString('id-ID')}) dari portofolio? Riwayat transaksi lama tetap aman.`;
+    const runDelete = async () => {
+      const res = await onDeleteAccount(acc);
+      if (res && typeof res === 'object' && !res.deleted && res.error) {
+        Alert.alert('Gagal Menghapus Akun', res.error);
+      }
+    };
+    if (Platform.OS === 'web' && typeof window !== 'undefined' && typeof window.confirm === 'function') {
+      if (window.confirm(msg)) {
+        runDelete();
+      }
+      return;
+    }
+    Alert.alert('Hapus Akun Keuangan', msg, [
+      { text: 'Batal', style: 'cancel' },
+      { text: 'Hapus', style: 'destructive', onPress: runDelete },
+    ]);
+  };
 
   return (
     <Modal visible={visible} animationType="slide" transparent onRequestClose={onClose}>
@@ -395,6 +419,15 @@ export const AutoPortfolioModal: React.FC<AutoPortfolioModalProps> = ({
                           <Text style={[styles.accountRowBalance, { color: colors.textPrimary }]}>
                             Rp{acc.saldo.toLocaleString('id-ID')}
                           </Text>
+                          {onDeleteAccount && accounts.length > 1 && (
+                            <TouchableOpacity
+                              onPress={() => handleConfirmDeleteAccount(acc)}
+                              hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                              style={{ paddingLeft: 4 }}
+                            >
+                              <Ionicons name="trash-outline" size={16} color={colors.expenseText} />
+                            </TouchableOpacity>
+                          )}
                         </TouchableOpacity>
                       );
                     })}

@@ -134,6 +134,14 @@ export async function extractBalanceWithGemini(
     ],
     schema: BALANCE_EXTRACTION_SCHEMA,
     temperature: 0.1,
+    edgeHint: {
+      functionName: 'ai-extract-document',
+      body: {
+        image_base64: cleanBase64,
+        mime_type: normalizedMime,
+        jenis_scan: 'saldo',
+      },
+    },
   });
 
   const parsed = interaction.data;

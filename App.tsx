@@ -1,5 +1,5 @@
 import { StatusBar } from 'expo-status-bar';
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ActivityIndicator,
   Alert,
@@ -11,6 +11,7 @@ import {
   View,
 } from 'react-native';
 import { SafeAreaProvider, useSafeAreaInsets } from 'react-native-safe-area-context';
+import * as ImagePicker from 'expo-image-picker';
 import {
   useFonts,
   PlusJakartaSans_400Regular,
@@ -19,15 +20,16 @@ import {
   PlusJakartaSans_700Bold,
 } from '@expo-google-fonts/plus-jakarta-sans';
 
-import { TabKey, Tx, NotificationPreferences } from './src/models/types';
+import { TabKey, ThemeMode, Tx, NotificationPreferences } from './src/models/types';
 import { ThemeProvider, useThemeContext } from './src/context/ThemeContext';
 import { AuthProvider, useAuthContext } from './src/context/AuthContext';
 import { useTransactions } from './src/controllers/useTransactions';
 import { usePortfolio } from './src/controllers/usePortfolio';
 import { useBudget } from './src/controllers/useBudget';
-import { useMagicReceipt } from './src/controllers/useMagicReceipt';
+import { SaveReceiptTxOutcome, useMagicReceipt } from './src/controllers/useMagicReceipt';
 import { useAutoPortfolioScan } from './src/controllers/useAutoPortfolioScan';
 import { accountService } from './src/services/db/accountService';
+import { profileService } from './src/services/db/profileService';
 import { resolveImagePayload, storageService } from './src/services/db/storageService';
 import {
   notificationService,
@@ -64,10 +66,12 @@ function MainApp() {
   // Tab & Modal States
   const [activeTab, setActiveTab] = useState<TabKey>('home');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [editingTx, setEditingTx] = useState<Tx | null>(null);
   const [isEditProfileOpen, setIsEditProfileOpen] = useState(false);
   const [isThemeModalOpen, setIsThemeModalOpen] = useState(false);
   const [isSetBudgetOpen, setIsSetBudgetOpen] = useState(false);
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
+  const [isRefreshing, setIsRefreshing] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(
     DEFAULT_NOTIFICATION_PREFERENCES
   );
@@ -79,6 +83,27 @@ function MainApp() {
   useEffect(() => {
     setActiveTab('home');
   }, [isLoggedIn, currentUser.id]);
+
+  // Sync user's saved theme_mode from cloud profile on login
+  useEffect(() => {
+    if (!isLoggedIn || typeof currentUser.id !== 'string' || !currentUser.id.includes('-')) return;
+    let mounted = true;
+    profileService.fetchProfile(currentUser.id).then((profile) => {
+      if (mounted && profile?.themeMode) {
+        setThemeMode(profile.themeMode);
+      }
+    });
+    return () => {
+      mounted = false;
+    };
+  }, [isLoggedIn, currentUser.id]);
+
+  const handleSelectThemeMode = (mode: ThemeMode) => {
+    setThemeMode(mode);
+    if (typeof currentUser.id === 'string' && currentUser.id.includes('-')) {
+      profileService.updateProfile(currentUser.id, { themeMode: mode });
+    }
+  };
 
   const handleSelectTab = (tabKey: TabKey) => {
     const index = TABS.findIndex((t) => t.key === tabKey);
@@ -135,7 +160,9 @@ function MainApp() {
     filteredOut,
     recentTransactions,
     addTransaction,
+    editTransaction,
     removeTransaction,
+    refreshTransactions,
   } = useTransactions(currentUser.id);
 
   const {
@@ -143,51 +170,11 @@ function MainApp() {
     totalBalance,
     pillars,
     updateBalance,
+    removeAccount,
     syncAccountBalanceLocal,
     deductAccountBalance,
+    refreshAccounts,
   } = usePortfolio(currentUser.id);
-
-  const handleTransactionAdded = async (newTx: Tx) => {
-    const targetAccountId = newTx.account_id ?? (accounts.length > 0 ? accounts[0].account_id : 1);
-    const txWithAccount: Tx = { ...newTx, account_id: targetAccountId };
-    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
-
-    deductAccountBalance(targetAccountId, txWithAccount.amount, txWithAccount.income, isRemoteUser);
-    const res = await addTransaction(txWithAccount);
-
-    if (isRemoteUser) {
-      if (res.usedAtomicRpc && res.newBalance !== null && res.accountId) {
-        syncAccountBalanceLocal(res.accountId, res.newBalance);
-      } else if (
-        !res.usedAtomicRpc &&
-        typeof targetAccountId === 'string' &&
-        targetAccountId.includes('-')
-      ) {
-        const targetAcc = accounts.find((a) => a.account_id === targetAccountId);
-        if (targetAcc) {
-          const delta = txWithAccount.income ? txWithAccount.amount : -txWithAccount.amount;
-          const fallbackBalance = Math.max(0, targetAcc.saldo + delta);
-          await accountService.updateAccountBalance(targetAccountId, fallbackBalance);
-        }
-      }
-    }
-
-    return res.transactionId;
-  };
-
-  const handleTransactionDeleted = async (tx: Tx) => {
-    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
-    if (tx.account_id !== undefined) {
-      deductAccountBalance(tx.account_id, tx.amount, !tx.income, isRemoteUser);
-    }
-    const res = await removeTransaction(tx.id);
-    if (isRemoteUser && res.accountId && res.newBalance !== null) {
-      syncAccountBalanceLocal(res.accountId, res.newBalance);
-    }
-  };
-
-  const magicReceipt = useMagicReceipt(handleTransactionAdded, currentUser.id);
-  const autoPortfolio = useAutoPortfolioScan(updateBalance, currentUser.id);
 
   const {
     budget,
@@ -203,17 +190,182 @@ function MainApp() {
     isGeneratingAdvice,
     setBudgetLimit,
     refreshAiAdvisor,
+    refreshBudget,
   } = useBudget(transactions, currentUser.id);
 
-  // Avatar Picker
-  const pickAvatar = async () => {
-    let ImagePicker: any = null;
+  const handleRefreshAll = useCallback(async () => {
+    setIsRefreshing(true);
     try {
-      ImagePicker = require('expo-image-picker');
-    } catch {
-      ImagePicker = null;
+      await Promise.all([refreshAccounts(), refreshTransactions(), refreshBudget()]);
+    } finally {
+      setIsRefreshing(false);
+    }
+  }, [refreshAccounts, refreshTransactions, refreshBudget]);
+
+  // Resolve guaranteed valid UUID account for remote users even during fast post-login scans
+  const resolveTargetAccountId = async (newTx: Tx): Promise<string | number> => {
+    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+    if (!isRemoteUser) {
+      return newTx.account_id ?? (accounts.length > 0 ? accounts[0].account_id : 1);
     }
 
+    if (typeof newTx.account_id === 'string' && newTx.account_id.includes('-')) {
+      return newTx.account_id;
+    }
+
+    let pool = accounts.filter((a) => typeof a.account_id === 'string' && a.account_id.includes('-'));
+    if (pool.length === 0) {
+      const fresh = await accountService.fetchAccounts(currentUser.id as string);
+      if (fresh && fresh.length > 0) {
+        pool = fresh;
+      }
+    }
+
+    if (pool.length === 0) {
+      return newTx.account_id ?? 1;
+    }
+
+    const methodLower = (newTx.metode_bayar || '').trim().toLowerCase();
+    const byName = pool.find((a) => a.nama_akun.trim().toLowerCase() === methodLower);
+    if (byName) return byName.account_id;
+
+    const targetType = methodLower.includes('wallet')
+      ? 'ewallet'
+      : methodLower.includes('invest')
+      ? 'investasi'
+      : 'bank';
+    const byType = pool.find((a) => a.tipe === targetType) ?? pool[0];
+    return byType.account_id;
+  };
+
+  const handleTransactionAdded = async (
+    newTx: Tx,
+    scanId?: string | null
+  ): Promise<SaveReceiptTxOutcome> => {
+    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+    const targetAccountId = await resolveTargetAccountId(newTx);
+    const txWithAccount: Tx = { ...newTx, account_id: targetAccountId };
+    const prevAccount = accounts.find((a) => a.account_id === targetAccountId);
+    const prevBalance = prevAccount ? prevAccount.saldo : null;
+
+    deductAccountBalance(targetAccountId, txWithAccount.amount, txWithAccount.income, isRemoteUser);
+    const res = await addTransaction(txWithAccount, scanId);
+
+    if (isRemoteUser) {
+      if (!res.transactionId) {
+        // Roll back optimistic account balance when cloud save failed
+        if (prevBalance !== null) {
+          syncAccountBalanceLocal(targetAccountId, prevBalance);
+        }
+        return {
+          success: false,
+          transactionId: null,
+          error:
+            res.error ||
+            'Transaksi gagal disimpan ke database cloud. Periksa koneksi internet dan status server Supabase.',
+        };
+      }
+
+      if (res.usedAtomicRpc && res.newBalance !== null && res.accountId) {
+        syncAccountBalanceLocal(res.accountId, res.newBalance);
+      } else if (
+        !res.usedAtomicRpc &&
+        typeof targetAccountId === 'string' &&
+        targetAccountId.includes('-') &&
+        prevBalance !== null
+      ) {
+        const delta = txWithAccount.income ? txWithAccount.amount : -txWithAccount.amount;
+        const fallbackBalance = Math.max(0, prevBalance + delta);
+        await accountService.updateAccountBalance(targetAccountId, fallbackBalance);
+      } else {
+        await refreshAccounts();
+      }
+    }
+
+    return {
+      success: true,
+      transactionId: res.transactionId,
+    };
+  };
+
+  const handleTransactionUpdated = async (
+    updatedTx: Tx
+  ): Promise<{ success: boolean; error?: string }> => {
+    const originalTx = editingTx;
+    if (!originalTx) {
+      return handleTransactionAdded(updatedTx);
+    }
+
+    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+    const res = await editTransaction(originalTx.id, updatedTx);
+
+    if (!res.updated) {
+      return {
+        success: false,
+        error: res.error || 'Gagal memperbarui transaksi di database.',
+      };
+    }
+
+    if (isRemoteUser) {
+      if (res.usedAtomicRpc) {
+        if (res.oldAccountId && res.oldAccountBalance !== null) {
+          syncAccountBalanceLocal(res.oldAccountId, res.oldAccountBalance);
+        }
+        if (res.newAccountId && res.newAccountBalance !== null) {
+          syncAccountBalanceLocal(res.newAccountId, res.newAccountBalance);
+        }
+      } else {
+        await refreshAccounts();
+      }
+    } else {
+      // Offline demo local reconciliation: reverse old impact, apply new impact
+      if (originalTx.account_id !== undefined) {
+        deductAccountBalance(originalTx.account_id, originalTx.amount, !originalTx.income, true);
+      }
+      if (updatedTx.account_id !== undefined) {
+        deductAccountBalance(updatedTx.account_id, updatedTx.amount, updatedTx.income, true);
+      }
+    }
+
+    setEditingTx(null);
+    return { success: true };
+  };
+
+  const handleTransactionDeleted = async (tx: Tx) => {
+    const isRemoteUser = typeof currentUser.id === 'string' && currentUser.id.includes('-');
+    const prevAccount =
+      tx.account_id !== undefined
+        ? accounts.find((a) => a.account_id === tx.account_id)
+        : undefined;
+    const prevBalance = prevAccount ? prevAccount.saldo : null;
+
+    if (tx.account_id !== undefined) {
+      deductAccountBalance(tx.account_id, tx.amount, !tx.income, isRemoteUser);
+    }
+    const res = await removeTransaction(tx.id);
+
+    if (isRemoteUser) {
+      if (!res.deleted) {
+        if (tx.account_id !== undefined && prevBalance !== null) {
+          syncAccountBalanceLocal(tx.account_id, prevBalance);
+        }
+        Alert.alert(
+          'Gagal Menghapus Transaksi',
+          res.error || 'Transaksi gagal dihapus dari server. Silakan coba lagi.'
+        );
+        return;
+      }
+      if (res.accountId && res.newBalance !== null) {
+        syncAccountBalanceLocal(res.accountId, res.newBalance);
+      }
+    }
+  };
+
+  const magicReceipt = useMagicReceipt(handleTransactionAdded, currentUser.id);
+  const autoPortfolio = useAutoPortfolioScan(updateBalance, currentUser.id);
+
+  // Avatar Picker (Static import for Expo Go, APK & Web compatibility)
+  const pickAvatar = async () => {
     if (ImagePicker && ImagePicker.launchImageLibraryAsync) {
       try {
         const permission = await ImagePicker.requestMediaLibraryPermissionsAsync();
@@ -250,38 +402,7 @@ function MainApp() {
         Alert.alert('Gagal', 'Terjadi kendala saat memilih foto.');
       }
     } else {
-      Alert.alert(
-        'Foto Profil',
-        'Pilih opsi foto profil demo atau hapus foto.',
-        [
-          {
-            text: 'Avatar Ilustrasi 1',
-            onPress: () =>
-              updateCurrentUser({
-                avatarUri:
-                  'https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?w=300&auto=format&fit=crop&q=80',
-              }),
-          },
-          {
-            text: 'Avatar Ilustrasi 2',
-            onPress: () =>
-              updateCurrentUser({
-                avatarUri:
-                  'https://images.unsplash.com/photo-1494790108377-be9c29b29330?w=300&auto=format&fit=crop&q=80',
-              }),
-          },
-          ...(currentUser.avatarUri
-            ? [
-                {
-                  text: 'Hapus Foto (Gunakan Inisial)',
-                  style: 'destructive' as const,
-                  onPress: () => updateCurrentUser({ avatarUri: null }),
-                },
-              ]
-            : []),
-          { text: 'Batal', style: 'cancel' as const },
-        ]
-      );
+      Alert.alert('Tidak Didukung', 'Fitur pemilihan foto profil tidak tersedia di perangkat ini.');
     }
   };
 
@@ -357,10 +478,19 @@ function MainApp() {
             isGeneratingAdvice={isGeneratingAdvice}
             onRefreshAdvisor={refreshAiAdvisor}
             recentTransactions={recentTransactions}
-            onOpenAddModal={() => setIsAddModalOpen(true)}
+            onOpenAddModal={() => {
+              setEditingTx(null);
+              setIsAddModalOpen(true);
+            }}
             onScanReceipt={() => magicReceipt.setIsOpen(true)}
             onOpenAutoPortfolio={() => autoPortfolio.openModal('scan')}
+            onEditTransaction={(tx) => {
+              setEditingTx(tx);
+              setIsAddModalOpen(true);
+            }}
             onDeleteTransaction={handleTransactionDeleted}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefreshAll}
             bottomSafeInset={insets.bottom}
           />
         </View>
@@ -374,7 +504,13 @@ function MainApp() {
             onSelectCat={setActiveCat}
             totalIn={filteredIn}
             totalOut={filteredOut}
+            onEditTransaction={(tx) => {
+              setEditingTx(tx);
+              setIsAddModalOpen(true);
+            }}
             onDeleteTransaction={handleTransactionDeleted}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefreshAll}
             bottomSafeInset={insets.bottom}
           />
         </View>
@@ -394,6 +530,8 @@ function MainApp() {
             isGeneratingAdvice={isGeneratingAdvice}
             onRefreshAdvisor={refreshAiAdvisor}
             onOpenSetBudget={() => setIsSetBudgetOpen(true)}
+            isRefreshing={isRefreshing}
+            onRefresh={handleRefreshAll}
             bottomSafeInset={insets.bottom}
           />
         </View>
@@ -417,19 +555,24 @@ function MainApp() {
         </View>
       </ScrollView>
 
-      {/* 1. Modal Catat Transaksi Manual (Dengan Kalender) */}
+      {/* 1. Modal Catat & Ubah Transaksi Manual (Dengan Kalender & RPC Atomik) */}
       <AddTransactionModal
         visible={isAddModalOpen}
-        onClose={() => setIsAddModalOpen(false)}
-        onSave={handleTransactionAdded}
+        editingTx={editingTx}
+        onClose={() => {
+          setIsAddModalOpen(false);
+          setEditingTx(null);
+        }}
+        onSave={editingTx ? handleTransactionUpdated : handleTransactionAdded}
         accounts={accounts}
         bottomSafeInset={insets.bottom}
       />
 
-      {/* 2. Modal Pindai Struk (Kamera & Galeri Murni) */}
+      {/* 2. Modal Pindai Struk (Kamera & Galeri Murni + Edit Tanggal & Validasi Bulan Aktif) */}
       <MagicReceiptModal
         visible={magicReceipt.isOpen}
         step={magicReceipt.step}
+        isSaving={magicReceipt.isSaving}
         imageUri={magicReceipt.receiptImageUri}
         extractedData={magicReceipt.extractedData}
         progress={magicReceipt.ocrProgress}
@@ -455,6 +598,7 @@ function MainApp() {
         onLaunchCamera={autoPortfolio.handleLaunchCamera}
         onPickGallery={autoPortfolio.handlePickGallery}
         onConfirmBalance={autoPortfolio.confirmAndSaveBalance}
+        onDeleteAccount={(acc) => removeAccount(acc.account_id)}
         bottomSafeInset={insets.bottom}
       />
 
@@ -468,11 +612,11 @@ function MainApp() {
         bottomSafeInset={insets.bottom}
       />
 
-      {/* 4. Modal Pilihan Tema (Light / Dark / System) */}
+      {/* 4. Modal Pilihan Tema (Light / Dark / System — Persist ke Local & Supabase) */}
       <ThemeModal
         visible={isThemeModalOpen}
         currentMode={themeMode}
-        onSelectMode={setThemeMode}
+        onSelectMode={handleSelectThemeMode}
         onClose={() => setIsThemeModalOpen(false)}
         bottomSafeInset={insets.bottom}
       />

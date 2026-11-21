@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  ActivityIndicator,
   Keyboard,
   KeyboardAvoidingView,
   Modal,
@@ -17,7 +18,11 @@ import { FONT } from '../../../constants/typography';
 import { Account, Tx } from '../../../models/types';
 import { CategoryIconBadge } from '../icons/CategoryIconBadge';
 import { CalendarDatePickerModal } from '../modals/CalendarDatePickerModal';
-import { getDeviceNow, SelectedDateResult } from '../../../utils/date';
+import {
+  getDeviceNow,
+  parseIsoOrDisplayDate,
+  SelectedDateResult,
+} from '../../../utils/date';
 import { formatRupiahInput, parseRupiahInput } from '../../../utils/currency';
 import { Ionicons } from '@expo/vector-icons';
 
@@ -26,7 +31,8 @@ const EXPENSE_CATS = ['Makan', 'Transportasi', 'Belanja', 'Hiburan', 'Tagihan', 
 type AddTransactionModalProps = {
   visible: boolean;
   onClose: () => void;
-  onSave: (tx: Tx) => void;
+  onSave: (tx: Tx) => Promise<{ success: boolean; error?: string } | void> | void;
+  editingTx?: Tx | null;
   accounts?: Account[];
   bottomSafeInset?: number;
 };
@@ -35,6 +41,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   visible,
   onClose,
   onSave,
+  editingTx = null,
   accounts = [],
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
@@ -51,6 +58,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   // Dynamic device date
   const [dateInfo, setDateInfo] = useState<SelectedDateResult>(getDeviceNow());
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState('');
 
   const accountList =
@@ -70,14 +78,30 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
     setSelectedAccountId(accountList[0]?.account_id ?? 1);
     setDateInfo(getDeviceNow());
     setIsCalendarOpen(false);
+    setIsSaving(false);
     setError('');
   };
 
   useEffect(() => {
-    if (visible) {
+    if (!visible) return;
+    if (editingTx) {
+      setName(editingTx.name);
+      setAmountStr(formatRupiahInput(editingTx.amount));
+      setIsIncome(editingTx.income);
+      setCat(editingTx.income ? 'Makan' : editingTx.cat || 'Makan');
+      const matchedAcc =
+        editingTx.account_id !== undefined
+          ? accountList.find((a) => a.account_id === editingTx.account_id)
+          : undefined;
+      setSelectedAccountId(matchedAcc?.account_id ?? accountList[0]?.account_id ?? 1);
+      setDateInfo(parseIsoOrDisplayDate(editingTx.date));
+      setIsCalendarOpen(false);
+      setIsSaving(false);
+      setError('');
+    } else {
       resetForm();
     }
-  }, [visible]);
+  }, [visible, editingTx]);
 
   useEffect(() => {
     if (accountList.length > 0 && !accountList.some((a) => a.account_id === selectedAccountId)) {
@@ -86,11 +110,13 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
   }, [accounts]);
 
   const handleClose = () => {
+    if (isSaving) return;
     resetForm();
     onClose();
   };
 
-  const handleSave = () => {
+  const handleSave = async () => {
+    if (isSaving) return;
     const trimmedName = name.trim();
     if (!trimmedName) {
       setError('Nama transaksi wajib diisi.');
@@ -102,21 +128,35 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
       return;
     }
 
-    const selectedAccount = accountList.find((a) => a.account_id === selectedAccountId);
+    const selectedAccount =
+      accountList.find((a) => a.account_id === selectedAccountId) ?? accountList[0];
 
-    const newTx: Tx = {
-      id: Date.now(),
+    const txPayload: Tx = {
+      id: editingTx ? editingTx.id : Date.now(),
       name: trimmedName,
       date: dateInfo.isoDate, // Store accurate ISO date "YYYY-MM-DD"
       cat: isIncome ? 'Pemasukan' : cat,
       amount: numAmount,
       income: isIncome,
-      account_id: selectedAccountId,
+      account_id: selectedAccount?.account_id ?? selectedAccountId,
+      merchant: editingTx?.merchant || trimmedName,
       metode_bayar: selectedAccount?.nama_akun ?? 'Bank',
+      catatan: editingTx?.catatan,
     };
 
-    onSave(newTx);
-    handleClose();
+    setIsSaving(true);
+    setError('');
+    try {
+      const result = await onSave(txPayload);
+      if (result && typeof result === 'object' && result.success === false) {
+        setError(result.error || 'Gagal menyimpan transaksi ke server.');
+        return;
+      }
+      resetForm();
+      onClose();
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const dateLabel = dateInfo.isToday
@@ -143,10 +183,11 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
             {/* Header Modal */}
             <View style={styles.header}>
               <Text style={[styles.title, { color: isDark ? '#FFFFFF' : colors.primary }]}>
-                Catat Transaksi Manual
+                {editingTx ? 'Ubah Transaksi' : 'Catat Transaksi Manual'}
               </Text>
               <TouchableOpacity
                 onPress={handleClose}
+                disabled={isSaving}
                 hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                 style={styles.closeBtn}
               >
@@ -382,6 +423,7 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                     },
                   ]}
                   onPress={handleClose}
+                  disabled={isSaving}
                   activeOpacity={0.7}
                 >
                   <Text style={[styles.cancelBtnText, { color: colors.textSecondary }]}>Batal</Text>
@@ -389,12 +431,25 @@ export const AddTransactionModal: React.FC<AddTransactionModalProps> = ({
                 <TouchableOpacity
                   style={[
                     styles.submitBtn,
-                    { backgroundColor: isDark ? '#2D6A4F' : colors.primary },
+                    {
+                      backgroundColor: isDark ? '#2D6A4F' : colors.primary,
+                      opacity: isSaving ? 0.7 : 1,
+                    },
                   ]}
                   onPress={handleSave}
+                  disabled={isSaving}
                   activeOpacity={0.85}
                 >
-                  <Text style={styles.submitBtnText}>Simpan Transaksi</Text>
+                  {isSaving ? (
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 8 }}>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={styles.submitBtnText}>Menyimpan...</Text>
+                    </View>
+                  ) : (
+                    <Text style={styles.submitBtnText}>
+                      {editingTx ? 'Simpan Perubahan' : 'Simpan Transaksi'}
+                    </Text>
+                  )}
                 </TouchableOpacity>
               </View>
             </ScrollView>

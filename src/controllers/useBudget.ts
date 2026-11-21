@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { BUDGET_CATS, INITIAL_BUDGET } from '../models/mockData';
 import { Budget, Tx } from '../models/types';
 import { analyzeSmartAdvisor } from './services/smartAdvisorService';
+import { normalizeCategoryName } from './services/magicReceiptService';
 import { budgetService } from '../services/db/budgetService';
 import { generateSmartAdvisorNarrative } from '../services/ai/geminiAdvisorService';
 import { getCurrentPeriodKey, getPeriodKeyFromDate } from '../utils/date';
@@ -32,7 +33,23 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
   const [aiRecommendationText, setAiRecommendationText] = useState<string | null>(null);
   const [isGeneratingAdvice, setIsGeneratingAdvice] = useState(false);
 
-  const activePeriod = useMemo(() => getCurrentPeriodKey(), []);
+  const activePeriod = getCurrentPeriodKey();
+
+  const refreshBudget = useCallback(async () => {
+    if (!userId || typeof userId !== 'string' || !userId.includes('-')) return;
+    const remote = await budgetService.fetchBudget(userId, activePeriod);
+    if (remote) {
+      setBudget(remote);
+      setCategoryLimits(remote.category_limits ?? {});
+
+      if (typeof remote.budget_id === 'string' && remote.budget_id.includes('-')) {
+        const latestRec = await budgetService.fetchLatestRecommendation(remote.budget_id);
+        if (latestRec?.isi_saran) {
+          setAiRecommendationText(latestRec.isi_saran);
+        }
+      }
+    }
+  }, [userId, activePeriod]);
 
   useEffect(() => {
     setBudget({ ...INITIAL_BUDGET, periode: activePeriod });
@@ -78,7 +95,7 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
       }
 
       const used = monthlyTransactions
-        .filter((t) => !t.income && t.cat === cat.key)
+        .filter((t) => !t.income && normalizeCategoryName(t.cat, false) === cat.key)
         .reduce((sum, t) => sum + t.amount, 0);
 
       const pct = catBudget > 0 ? Math.round((used / catBudget) * 100) : 0;
@@ -209,5 +226,6 @@ export function useBudget(transactions: Tx[], userId?: string | number) {
     isGeneratingAdvice,
     setBudgetLimit,
     refreshAiAdvisor,
+    refreshBudget,
   };
 }

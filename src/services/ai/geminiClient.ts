@@ -1,3 +1,5 @@
+import { isSupabaseConfigured, supabase } from '../supabase';
+
 const GEMINI_INTERACTIONS_URL = 'https://generativelanguage.googleapis.com/v1beta/interactions';
 export const DEFAULT_GEMINI_MODEL = 'gemini-3.5-flash-lite';
 
@@ -5,11 +7,17 @@ export type GeminiInputPart =
   | { type: 'text'; text: string }
   | { type: 'image'; data: string; mime_type: 'image/jpeg' | 'image/png' };
 
+export type EdgeFunctionHint = {
+  functionName: 'ai-extract-document' | 'ai-smart-advisor';
+  body: Record<string, unknown>;
+};
+
 export type GeminiJsonInteractionOptions = {
   systemInstruction: string;
   inputParts: GeminiInputPart[];
   schema: Record<string, unknown>;
   temperature?: number;
+  edgeHint?: EdgeFunctionHint;
 };
 
 export type GeminiJsonInteractionResult<T> = {
@@ -18,6 +26,7 @@ export type GeminiJsonInteractionResult<T> = {
   keyIndexUsed: number;
   totalKeysConfigured: number;
   modelUsed: string;
+  viaEdgeFunction?: boolean;
 };
 
 // Shared module-level Round-Robin pointer & per-key rate-limit cooldown tracker across all AI services
@@ -46,14 +55,19 @@ export function getConfiguredGeminiModel(): string {
   return raw.trim() || DEFAULT_GEMINI_MODEL;
 }
 
+export function shouldUseEdgeFunctions(): boolean {
+  const flag = String(process.env.EXPO_PUBLIC_USE_EDGE_FUNCTIONS || '').trim().toLowerCase();
+  return isSupabaseConfigured && (flag === 'true' || flag === '1');
+}
+
 export function isGeminiConfigured(): boolean {
-  return getConfiguredGeminiKeys().length > 0;
+  return getConfiguredGeminiKeys().length > 0 || shouldUseEdgeFunctions();
 }
 
 export function buildRoundRobinKeyOrder(totalKeys: number): number[] {
   if (totalKeys <= 0) return [];
   const start = roundRobinCursor % totalKeys;
-  // Advance pointer immediately so consecutive requests distribute across all 14 keys
+  // Advance pointer immediately so consecutive requests distribute across all configured keys
   roundRobinCursor = (start + 1) % totalKeys;
 
   const now = Date.now();
@@ -73,9 +87,15 @@ export function buildRoundRobinKeyOrder(totalKeys: number): number[] {
   return [...ready, ...coolingDown];
 }
 
+function stripJsonCodeFences(raw: string): string {
+  const trimmed = raw.trim();
+  const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+  return fenceMatch ? fenceMatch[1].trim() : trimmed;
+}
+
 function extractTextFromInteractionResponse(payload: any): string {
   if (typeof payload?.output_text === 'string' && payload.output_text.trim().length > 0) {
-    return payload.output_text.trim();
+    return stripJsonCodeFences(payload.output_text);
   }
 
   if (Array.isArray(payload?.steps)) {
@@ -88,7 +108,7 @@ function extractTextFromInteractionResponse(payload: any): string {
           .join('')
           .trim();
         if (joined.length > 0) {
-          return joined;
+          return stripJsonCodeFences(joined);
         }
       }
     }
@@ -99,12 +119,50 @@ function extractTextFromInteractionResponse(payload: any): string {
     .join('')
     .trim();
 
-  return fallbackCandidateText || '';
+  return fallbackCandidateText ? stripJsonCodeFences(fallbackCandidateText) : '';
+}
+
+async function tryEdgeFunctionInvocation<T>(
+  hint: EdgeFunctionHint,
+  startedAt: number
+): Promise<GeminiJsonInteractionResult<T> | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke(hint.functionName, {
+      body: hint.body,
+    });
+
+    if (error || !data || !data.result) {
+      console.warn(`Edge function ${hint.functionName} fallback:`, error?.message || 'empty result');
+      return null;
+    }
+
+    return {
+      data: data.result as T,
+      processingTimeMs: Number(data.processing_time_ms) || Date.now() - startedAt,
+      keyIndexUsed: Number(data.key_index_used) || 1,
+      totalKeysConfigured: getConfiguredGeminiKeys().length || 14,
+      modelUsed: String(data.model || getConfiguredGeminiModel()),
+      viaEdgeFunction: true,
+    };
+  } catch (err) {
+    console.warn(`Edge function ${hint.functionName} exception, falling back to direct keys:`, err);
+    return null;
+  }
 }
 
 export async function executeGeminiJsonInteraction<T = any>(
   options: GeminiJsonInteractionOptions
 ): Promise<GeminiJsonInteractionResult<T>> {
+  const startedAt = Date.now();
+
+  // Phase 3 optional Server-Side Edge Function proxy with automatic client-key failover
+  if (options.edgeHint && shouldUseEdgeFunctions()) {
+    const edgeResult = await tryEdgeFunctionInvocation<T>(options.edgeHint, startedAt);
+    if (edgeResult) {
+      return edgeResult;
+    }
+  }
+
   const keys = getConfiguredGeminiKeys();
   if (keys.length === 0) {
     throw new Error('API Key Gemini belum dikonfigurasi pada file .env (EXPO_PUBLIC_GEMINI_API_KEYS).');
@@ -112,7 +170,6 @@ export async function executeGeminiJsonInteraction<T = any>(
 
   const model = getConfiguredGeminiModel();
   const keyOrder = buildRoundRobinKeyOrder(keys.length);
-  const startedAt = Date.now();
   let lastErrorMessage = 'Gagal terhubung ke layanan Gemini AI.';
 
   for (const keyIdx of keyOrder) {
@@ -173,11 +230,13 @@ export async function executeGeminiJsonInteraction<T = any>(
         keyIndexUsed: keyIdx + 1,
         totalKeysConfigured: keys.length,
         modelUsed: model,
+        viaEdgeFunction: false,
       };
     } catch (err: any) {
-      const msg = err?.name === 'AbortError'
-        ? `Koneksi API Key #${keyIdx + 1} melebihi batas waktu, mencoba key berikutnya...`
-        : err?.message || String(err);
+      const msg =
+        err?.name === 'AbortError'
+          ? `Koneksi API Key #${keyIdx + 1} melebihi batas waktu, mencoba key berikutnya...`
+          : err?.message || String(err);
       if (msg.includes('Permintaan AI ditolak')) {
         throw err;
       }
