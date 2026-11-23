@@ -28,6 +28,7 @@ import { usePortfolio } from './src/controllers/usePortfolio';
 import { useBudget } from './src/controllers/useBudget';
 import { SaveReceiptTxOutcome, useMagicReceipt } from './src/controllers/useMagicReceipt';
 import { useAutoPortfolioScan } from './src/controllers/useAutoPortfolioScan';
+import { useFinancialProfile } from './src/controllers/useFinancialProfile';
 import { accountService } from './src/services/db/accountService';
 import { profileService } from './src/services/db/profileService';
 import { resolveImagePayload, storageService } from './src/services/db/storageService';
@@ -46,6 +47,7 @@ import { ThemeModal } from './src/views/components/modals/ThemeModal';
 import { ForgotPasswordModal } from './src/views/components/modals/ForgotPasswordModal';
 import { SetBudgetModal } from './src/views/components/modals/SetBudgetModal';
 import { NotificationSettingsModal } from './src/views/components/modals/NotificationSettingsModal';
+import { FinancialProfileModal } from './src/views/components/modals/FinancialProfileModal';
 
 import { LoginScreen } from './src/views/screens/LoginScreen';
 import { RegisterScreen } from './src/views/screens/RegisterScreen';
@@ -72,6 +74,7 @@ function MainApp() {
   const [isSetBudgetOpen, setIsSetBudgetOpen] = useState(false);
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
+  const [isFinancialProfileOpen, setIsFinancialProfileOpen] = useState(false);
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(
     DEFAULT_NOTIFICATION_PREFERENCES
   );
@@ -175,6 +178,7 @@ function MainApp() {
     deductAccountBalance,
     refreshAccounts,
   } = usePortfolio(currentUser.id);
+
 
   const {
     budget,
@@ -363,6 +367,7 @@ function MainApp() {
 
   const magicReceipt = useMagicReceipt(handleTransactionAdded, currentUser.id);
   const autoPortfolio = useAutoPortfolioScan(updateBalance, currentUser.id);
+  const financialProfile = useFinancialProfile(currentUser.id);
 
   // Avatar Picker (Static import for Expo Go, APK & Web compatibility)
   const pickAvatar = async () => {
@@ -544,10 +549,18 @@ function MainApp() {
             onOpenEditProfile={() => setIsEditProfileOpen(true)}
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
             onOpenNotificationSettings={() => setIsNotifModalOpen(true)}
+            onOpenFinancialProfile={() => setIsFinancialProfileOpen(true)}
             notificationSubtitle={
               notifPrefs.dailyReminder
                 ? `Aktif (${notifPrefs.reminderTime} WIB)`
                 : 'Nonaktif'
+            }
+            financialProfileSubtitle={
+              financialProfile.isLoading
+                ? 'Memuat profil...'
+                : financialProfile.profile
+                ? `Langkah ${financialProfile.profile.profile_step_completed} dari 3 selesai`
+                : 'Lengkapi data finansialmu'
             }
             totalBalance={totalBalance}
             bottomSafeInset={insets.bottom}
@@ -639,6 +652,20 @@ function MainApp() {
         onClose={() => setIsNotifModalOpen(false)}
         bottomSafeInset={insets.bottom}
       />
+
+      {/* 7. Modal Profil Finansial */}
+      {isFinancialProfileOpen && (
+        <FinancialProfileModal
+          visible
+          currentProfile={financialProfile.profile}
+          isSaving={financialProfile.isLoading}
+          onSaveStep={async (updates) => {
+            await financialProfile.saveProfile(updates);
+          }}
+          onClose={() => setIsFinancialProfileOpen(false)}
+          bottomSafeInset={insets.bottom}
+        />
+      )}
 
       {/* Bottom Navigation Tab Bar */}
       <BottomTabBar

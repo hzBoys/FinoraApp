@@ -23,7 +23,9 @@ type ProfileScreenProps = {
   onOpenEditProfile: () => void;
   onOpenThemeModal: () => void;
   onOpenNotificationSettings?: () => void;
+  onOpenFinancialProfile: () => void;
   notificationSubtitle?: string;
+  financialProfileSubtitle: string;
   totalBalance?: number;
   bottomSafeInset?: number;
 };
@@ -35,7 +37,9 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onOpenEditProfile,
   onOpenThemeModal,
   onOpenNotificationSettings,
+  onOpenFinancialProfile,
   notificationSubtitle = 'Pengingat catat struk & limit anggaran',
+  financialProfileSubtitle,
   totalBalance = 0,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
@@ -186,7 +190,7 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         </TouchableOpacity>
 
         <TouchableOpacity
-          style={styles.menuItem}
+          style={[styles.menuItem, styles.menuBorder, { borderBottomColor: colors.border }]}
           activeOpacity={0.7}
           onPress={onOpenNotificationSettings}
         >
@@ -194,6 +198,19 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
           <View style={{ flex: 1, paddingLeft: 4 }}>
             <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>Notifikasi</Text>
             <Text style={[styles.menuDesc, { color: colors.textMuted }]}>{notificationSubtitle}</Text>
+          </View>
+          <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.menuItem}
+          activeOpacity={0.7}
+          onPress={onOpenFinancialProfile}
+        >
+          <CategoryIconBadge categoryOrType="Investasi" size={30} iconSize={16} />
+          <View style={{ flex: 1, paddingLeft: 4 }}>
+            <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>Profil Finansial</Text>
+            <Text style={[styles.menuDesc, { color: colors.textMuted }]}>{financialProfileSubtitle}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>
