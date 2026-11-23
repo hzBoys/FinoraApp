@@ -24,11 +24,7 @@ export const AdvisorCard: React.FC<AdvisorCardProps> = ({
 }) => {
   const { colors } = useThemeContext();
 
-  const resolvedNote =
-    note ??
-    (isAiGenerated
-      ? 'Rekomendasi personal Gemini AI berbasis rasio 60/20/20 Finora'
-      : 'Rekomendasi otomatis berbasis rasio 60/20/20 Finora');
+  const resolvedNote = note ?? null;
 
   return (
     <View style={[styles.advisorCard, { backgroundColor: colors.card, borderColor: colors.border }]}>
@@ -84,7 +80,9 @@ export const AdvisorCard: React.FC<AdvisorCardProps> = ({
         </View>
 
         <Text style={[styles.advisorBody, { color: colors.textSecondary }]}>{body}</Text>
-        <Text style={[styles.advisorNote, { color: colors.textMuted }]}>{resolvedNote}</Text>
+        {resolvedNote ? (
+          <Text style={[styles.advisorNote, { color: colors.textMuted }]}>{resolvedNote}</Text>
+        ) : null}
       </View>
     </View>
   );

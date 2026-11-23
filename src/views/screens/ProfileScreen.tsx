@@ -24,8 +24,10 @@ type ProfileScreenProps = {
   onOpenThemeModal: () => void;
   onOpenNotificationSettings?: () => void;
   onOpenFinancialProfile: () => void;
+  onOpenPinSettings?: () => void;
   notificationSubtitle?: string;
   financialProfileSubtitle: string;
+  pinSubtitle?: string;
   totalBalance?: number;
   bottomSafeInset?: number;
 };
@@ -38,8 +40,10 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
   onOpenThemeModal,
   onOpenNotificationSettings,
   onOpenFinancialProfile,
+  onOpenPinSettings,
   notificationSubtitle = 'Pengingat catat struk & limit anggaran',
   financialProfileSubtitle,
+  pinSubtitle = 'Kunci aplikasi saat tidak digunakan',
   totalBalance = 0,
   bottomSafeInset = LAYOUT.bottomSafeHeight,
 }) => {
@@ -90,22 +94,13 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <Text style={[styles.roleTag, { color: colors.primary, backgroundColor: colors.mintBg }]}>
           {user.role}
         </Text>
-        <View style={{ flexDirection: 'row', gap: 8 }}>
-          <TouchableOpacity
-            style={[styles.editBtn, { backgroundColor: colors.isDark ? '#2D6A4F' : colors.primary }]}
-            activeOpacity={0.8}
-            onPress={onOpenEditProfile}
-          >
-            <Text style={styles.editBtnText}>Ubah Profil</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.photoBtn, { borderColor: colors.border, backgroundColor: colors.card }]}
-            activeOpacity={0.8}
-            onPress={onPickImage}
-          >
-            <Text style={[styles.photoBtnText, { color: colors.textSecondary }]}>Ganti Foto</Text>
-          </TouchableOpacity>
-        </View>
+        <TouchableOpacity
+          style={[styles.editBtn, { backgroundColor: colors.isDark ? '#2D6A4F' : colors.primary, minWidth: 140 }]}
+          activeOpacity={0.8}
+          onPress={onOpenEditProfile}
+        >
+          <Text style={styles.editBtnText}>Ubah Profil</Text>
+        </TouchableOpacity>
       </View>
 
       {/* Kartu Akun Portofolio */}
@@ -235,12 +230,12 @@ export const ProfileScreen: React.FC<ProfileScreenProps> = ({
         <TouchableOpacity
           style={styles.menuItem}
           activeOpacity={0.7}
-          onPress={() => Alert.alert('PIN & Autentikasi', 'Fitur PIN dan Biometrik Finora aktif.')}
+          onPress={onOpenPinSettings}
         >
           <CategoryIconBadge categoryOrType="PIN" size={30} iconSize={16} />
           <View style={{ flex: 1, paddingLeft: 4 }}>
-            <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>PIN dan Autentikasi</Text>
-            <Text style={[styles.menuDesc, { color: colors.textMuted }]}>Kunci aplikasi saat tidak digunakan</Text>
+            <Text style={[styles.menuTitle, { color: colors.textPrimary }]}>PIN Keamanan</Text>
+            <Text style={[styles.menuDesc, { color: colors.textMuted }]}>{pinSubtitle}</Text>
           </View>
           <Ionicons name="chevron-forward" size={18} color={colors.textMuted} />
         </TouchableOpacity>

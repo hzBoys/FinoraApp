@@ -23,6 +23,7 @@ import {
 import { TabKey, ThemeMode, Tx, NotificationPreferences } from './src/models/types';
 import { ThemeProvider, useThemeContext } from './src/context/ThemeContext';
 import { AuthProvider, useAuthContext } from './src/context/AuthContext';
+import { SecurityProvider, useSecurityContext, AUTOLOCK_OPTIONS } from './src/context/SecurityContext';
 import { useTransactions } from './src/controllers/useTransactions';
 import { usePortfolio } from './src/controllers/usePortfolio';
 import { useBudget } from './src/controllers/useBudget';
@@ -48,6 +49,8 @@ import { ForgotPasswordModal } from './src/views/components/modals/ForgotPasswor
 import { SetBudgetModal } from './src/views/components/modals/SetBudgetModal';
 import { NotificationSettingsModal } from './src/views/components/modals/NotificationSettingsModal';
 import { FinancialProfileModal } from './src/views/components/modals/FinancialProfileModal';
+import { PinSettingsModal } from './src/views/components/modals/PinSettingsModal';
+import { PinLockOverlay } from './src/views/components/security/PinLockOverlay';
 
 import { LoginScreen } from './src/views/screens/LoginScreen';
 import { RegisterScreen } from './src/views/screens/RegisterScreen';
@@ -75,6 +78,14 @@ function MainApp() {
   const [isNotifModalOpen, setIsNotifModalOpen] = useState(false);
   const [isRefreshing, setIsRefreshing] = useState(false);
   const [isFinancialProfileOpen, setIsFinancialProfileOpen] = useState(false);
+  const [isPinSettingsOpen, setIsPinSettingsOpen] = useState(false);
+  const { isPinEnabled, autolockDelay } = useSecurityContext();
+
+  const activeAutolockOption =
+    AUTOLOCK_OPTIONS.find((o) => o.seconds === autolockDelay) || AUTOLOCK_OPTIONS[1];
+  const pinSubtitle = isPinEnabled
+    ? `Kunci aktif (${activeAutolockOption.label})`
+    : 'Belum aktif · Ketuk untuk atur PIN';
   const [notifPrefs, setNotifPrefs] = useState<NotificationPreferences>(
     DEFAULT_NOTIFICATION_PREFERENCES
   );
@@ -550,6 +561,8 @@ function MainApp() {
             onOpenThemeModal={() => setIsThemeModalOpen(true)}
             onOpenNotificationSettings={() => setIsNotifModalOpen(true)}
             onOpenFinancialProfile={() => setIsFinancialProfileOpen(true)}
+            onOpenPinSettings={() => setIsPinSettingsOpen(true)}
+            pinSubtitle={pinSubtitle}
             notificationSubtitle={
               notifPrefs.dailyReminder
                 ? `Aktif (${notifPrefs.reminderTime} WIB)`
@@ -667,6 +680,16 @@ function MainApp() {
         />
       )}
 
+      {/* 8. Modal PIN Keamanan */}
+      <PinSettingsModal
+        visible={isPinSettingsOpen}
+        onClose={() => setIsPinSettingsOpen(false)}
+        bottomSafeInset={insets.bottom}
+      />
+
+      {/* Fullscreen PIN Lock Overlay */}
+      <PinLockOverlay />
+
       {/* Bottom Navigation Tab Bar */}
       <BottomTabBar
         activeTab={activeTab}
@@ -705,7 +728,9 @@ export default function App() {
     <SafeAreaProvider>
       <ThemeProvider>
         <AuthProvider>
-          <MainApp />
+          <SecurityProvider>
+            <MainApp />
+          </SecurityProvider>
         </AuthProvider>
       </ThemeProvider>
     </SafeAreaProvider>

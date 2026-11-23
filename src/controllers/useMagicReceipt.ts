@@ -197,7 +197,7 @@ export function useMagicReceipt(
         const result = await ImagePicker.launchImageLibraryAsync({
           mediaTypes: ['images'],
           allowsEditing: false,
-          quality: 0.7,
+          quality: 0.55,
           base64: true,
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {
@@ -227,7 +227,7 @@ export function useMagicReceipt(
         }
         const result = await ImagePicker.launchCameraAsync({
           allowsEditing: false,
-          quality: 0.7,
+          quality: 0.55,
           base64: true,
         });
         if (!result.canceled && result.assets && result.assets.length > 0) {

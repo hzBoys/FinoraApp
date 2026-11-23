@@ -69,7 +69,10 @@ export function validateReceiptFile(
   }
 
   if (fileSize > MAX_FILE_SIZE_BYTES) {
-    return { valid: false, error: 'Ukuran file melebihi batas maksimal 5 MB.' };
+    return {
+      valid: false,
+      error: 'Ukuran file melebihi batas 5 MB. Harap gunakan foto dengan resolusi lebih ringkas atau potret lebih dekat.',
+    };
   }
 
   return { valid: true };

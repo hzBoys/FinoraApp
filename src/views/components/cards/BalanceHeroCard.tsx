@@ -73,7 +73,12 @@ export const BalanceHeroCard: React.FC<BalanceHeroCardProps> = ({
               <Ionicons name="business" size={13} color={colors.textOnDarkDim} />
               <Text style={[styles.pillarLabel, { color: colors.textOnDarkDim }]}>Bank</Text>
             </View>
-            <Text style={[styles.pillarAmount, { color: colors.textOnDark }]}>
+            <Text
+              style={[styles.pillarAmount, { color: colors.textOnDark }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
               Rp{(pillars.bank || 0).toLocaleString('id-ID')}
             </Text>
             <Text style={[styles.pillarSub, { color: colors.textOnDarkDim }]}>Rekening Utama</Text>
@@ -83,7 +88,12 @@ export const BalanceHeroCard: React.FC<BalanceHeroCardProps> = ({
               <Ionicons name="wallet" size={13} color={colors.textOnDarkDim} />
               <Text style={[styles.pillarLabel, { color: colors.textOnDarkDim }]}>E-Wallet</Text>
             </View>
-            <Text style={[styles.pillarAmount, { color: colors.textOnDark }]}>
+            <Text
+              style={[styles.pillarAmount, { color: colors.textOnDark }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
               Rp{(pillars.ewallet || 0).toLocaleString('id-ID')}
             </Text>
             <Text style={[styles.pillarSub, { color: colors.textOnDarkDim }]}>Dompet Digital</Text>
@@ -93,7 +103,12 @@ export const BalanceHeroCard: React.FC<BalanceHeroCardProps> = ({
               <Ionicons name="trending-up" size={13} color={colors.textOnDarkDim} />
               <Text style={[styles.pillarLabel, { color: colors.textOnDarkDim }]}>Investasi</Text>
             </View>
-            <Text style={[styles.pillarAmount, { color: colors.textOnDark }]}>
+            <Text
+              style={[styles.pillarAmount, { color: colors.textOnDark }]}
+              numberOfLines={1}
+              adjustsFontSizeToFit
+              minimumFontScale={0.75}
+            >
               Rp{(pillars.investasi || 0).toLocaleString('id-ID')}
             </Text>
             <Text style={[styles.pillarSub, { color: colors.textOnDarkDim }]}>Portofolio Aset</Text>
@@ -181,12 +196,13 @@ const styles = StyleSheet.create({
   },
   pillar: {
     flex: 1,
-    paddingRight: 8,
+    paddingRight: 6,
+    minWidth: 0,
   },
   pillarBorder: {
     borderLeftWidth: 1,
     borderLeftColor: 'rgba(255, 255, 255, 0.12)',
-    paddingLeft: 8,
+    paddingLeft: 6,
   },
   pillarHeader: {
     flexDirection: 'row',

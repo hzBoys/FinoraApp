@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useEffect, useMemo, useState } from 'react';
-import { useColorScheme } from 'react-native';
+import { Appearance, ColorSchemeName, useColorScheme } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { ColorTheme, getThemeColors, LIGHT_COLORS } from '../constants/theme';
 import { ThemeMode } from '../models/types';
@@ -21,8 +21,27 @@ const ThemeContext = createContext<ThemeContextType>({
 });
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  const systemScheme = useColorScheme();
+  const hookColorScheme = useColorScheme();
+  const [systemScheme, setSystemScheme] = useState<ColorSchemeName>(
+    hookColorScheme || Appearance.getColorScheme() || 'light'
+  );
   const [themeMode, setThemeModeState] = useState<ThemeMode>('light');
+
+  // Listen directly to OS appearance changes (iOS / Android)
+  useEffect(() => {
+    const sub = Appearance.addChangeListener(({ colorScheme }) => {
+      setSystemScheme(colorScheme || 'light');
+    });
+    return () => {
+      sub.remove();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hookColorScheme) {
+      setSystemScheme(hookColorScheme);
+    }
+  }, [hookColorScheme]);
 
   useEffect(() => {
     let isMounted = true;
