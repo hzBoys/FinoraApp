@@ -16,7 +16,35 @@ export const accountService = {
       }
 
       if (!data) return null;
-      if (data.length === 0) return [];
+      if (data.length === 0) {
+        // Self-healing fallback: seed default accounts if trigger did not populate
+        try {
+          const { data: seeded } = await supabase
+            .from('accounts')
+            .insert([
+              { user_id: userId, nama_akun: 'Bank', tipe: 'bank', saldo: 0 },
+              { user_id: userId, nama_akun: 'E-Wallet', tipe: 'ewallet', saldo: 0 },
+              { user_id: userId, nama_akun: 'Investasi', tipe: 'investasi', saldo: 0 },
+            ])
+            .select('*');
+
+          if (seeded && seeded.length > 0) {
+            return seeded.map((item: any) => ({
+              account_id: item.id,
+              user_id: item.user_id,
+              nama_akun: item.nama_akun,
+              tipe: item.tipe as AccountType,
+              saldo: Number(item.saldo),
+              updated_at: item.updated_at
+                ? item.updated_at.split('T')[0]
+                : new Date().toISOString().split('T')[0],
+            }));
+          }
+        } catch (seedErr) {
+          console.warn('accountService.fetchAccounts seed fallback error:', seedErr);
+        }
+        return [];
+      }
 
       return data.map((item: any) => ({
         account_id: item.id,

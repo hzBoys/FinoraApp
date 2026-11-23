@@ -253,9 +253,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           });
         }
 
-        const remoteProfile = await profileService.fetchProfile(data.user.id);
-        if (remoteProfile) {
-          setCurrentUser(remoteProfile);
+        let finalProfile = await profileService.fetchProfile(data.user.id);
+        if (!finalProfile) {
+          // Self-healing fallback: Ensure public.users record exists if trigger had delay
+          try {
+            await supabase.from('users').upsert(
+              {
+                id: data.user.id,
+                nama: nama.trim(),
+                username: cleanUsername,
+                email: cleanEmail,
+              },
+              { onConflict: 'id' }
+            );
+            finalProfile = await profileService.fetchProfile(data.user.id);
+          } catch {
+            // Ignore if already created by trigger
+          }
+        }
+
+        if (finalProfile) {
+          setCurrentUser(finalProfile);
         } else {
           setCurrentUser({
             id: data.user.id,
