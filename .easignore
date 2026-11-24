@@ -1,0 +1,43 @@
+# EAS Build ignore file
+# Same as .gitignore, but includes .env so EAS Cloud has backend credentials
+
+node_modules/
+.expo/
+dist/
+web-build/
+expo-env.d.ts
+
+# Native & Keystores
+.kotlin/
+*.orig.*
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# Metro & debug
+.metro-health-check*
+npm-debug.*
+yarn-debug.*
+yarn-error.*
+
+# macOS
+.DS_Store
+*.pem
+
+# Documents
+desktop.ini
+/*.pdf
+/*.docx
+/*.doc
+/*.pptx
+/*.ppt
+/bukti-uji-backend/
+
+# TypeScript
+*.tsbuildinfo
+
+# Generated native folders
+/ios
+/android
